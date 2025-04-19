@@ -1,8 +1,9 @@
 use diesel::associations::HasTable;
-use diesel::{QueryDsl, SelectableHelper};
+use diesel::{PgConnection, QueryDsl, SelectableHelper};
+use std::collections::HashMap;
 use std::ops::Deref;
 
-pub mod entity;
+mod entity;
 mod schema;
 
 /// 출판사 도메인
@@ -26,10 +27,41 @@ impl Publisher {
     fn add_keyword(&mut self, keyword: String) {
         self.keywords.push(keyword);
     }
+
+    pub fn id(&self) -> u64 {
+        self.id
+    }
+
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    pub fn keywords(&self) -> &Vec<String> {
+        &self.keywords
+    }
 }
 
 impl PartialEq<Self> for Publisher {
     fn eq(&self, other: &Self) -> bool {
         self.id == other.id
     }
+}
+
+pub fn get_publisher_all(conn: &mut PgConnection) -> Vec<Publisher> {
+    let result_set = entity::find_publisher_all(conn);
+
+    let mut map = HashMap::<u64, Publisher>::new();
+    result_set.iter().for_each(|item| {
+        let publisher_entity = &item.0;
+        let keyword_entity = &item.1;
+
+        let id = publisher_entity.id as u64;
+        let publisher = map.entry(id)
+            .or_insert_with(|| Publisher::new(id, publisher_entity.name.clone()));
+
+        if let Some(k) = keyword_entity {
+            publisher.add_keyword(k.keyword.clone())
+        }
+    });
+    map.into_values().collect()
 }
