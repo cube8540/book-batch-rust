@@ -1,24 +1,41 @@
 use chrono;
+use chrono::NaiveDate;
+use diesel::prelude::*;
 
 /// 출판사 모델
+#[derive(Queryable, Selectable, Identifiable, Debug, PartialEq)]
+#[diesel(table_name = crate::book::schema::publisher)]
 pub struct Publisher {
-    id: u64,
+    id: i64,
     name: String,
-    // API 검색에 사용할 출판사 키워드
-    keywords: Vec<String>,
 }
 
 impl Publisher {
-    fn id(&self) -> u64 {
+    pub fn id(&self) -> i64 {
         self.id
     }
 
     pub fn name(&self) -> &str {
         &self.name
     }
+}
 
-    pub fn keywords(&self) -> &Vec<String> {
-        &self.keywords
+#[derive(Queryable, Selectable, Identifiable, Associations, Debug, PartialEq)]
+#[diesel(table_name = crate::book::schema::publisher_keyword)]
+#[diesel(primary_key(publisher_id, keyword))]
+#[diesel(belongs_to(Publisher, foreign_key = publisher_id))]
+pub struct PublisherKeyword {
+    publisher_id: i64,
+    keyword: String,
+}
+
+impl PublisherKeyword {
+    pub fn publisher_id(&self) -> i64 {
+        self.publisher_id
+    }
+
+    pub fn keyword(&self) -> &str {
+        &self.keyword
     }
 }
 
@@ -51,9 +68,9 @@ pub struct Book {
     title: String,
 
     // 예정된 출판일
-    scheduled_pub_date: Option<chrono::NaiveDate>,
+    scheduled_pub_date: Option<NaiveDate>,
     // 실제 출판일
-    actual_pub_date: Option<chrono::NaiveDate>,
+    actual_pub_date: Option<NaiveDate>,
 
     series_id: u64,
 }
@@ -71,11 +88,11 @@ impl Book {
         &self.title
     }
 
-    pub fn scheduled_pub_date(&self) -> Option<chrono::NaiveDate> {
+    pub fn scheduled_pub_date(&self) -> Option<NaiveDate> {
         self.scheduled_pub_date
     }
 
-    pub fn actual_pub_date(&self) -> Option<chrono::NaiveDate> {
+    pub fn actual_pub_date(&self) -> Option<NaiveDate> {
         self.actual_pub_date
     }
 

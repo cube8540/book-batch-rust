@@ -71,6 +71,7 @@ dependencies = [
  "chrono",
  "config",
  "diesel",
+ "serde",
 ]
 
 [[package]]
