@@ -1,68 +1,40 @@
-use chrono;
+use crate::book::schema::publisher::dsl::publisher;
+use crate::book::schema::publisher_keyword::dsl::publisher_keyword;
+use crate::book::Publisher;
+
 use chrono::NaiveDate;
-use diesel::prelude::*;
+use diesel::associations::HasTable;
+use diesel::{Associations, Identifiable, PgConnection, QueryDsl, Queryable, RunQueryDsl, Selectable, SelectableHelper};
+use std::collections::HashMap;
 
 /// 출판사 모델
 #[derive(Queryable, Selectable, Identifiable, Debug, PartialEq)]
 #[diesel(table_name = crate::book::schema::publisher)]
-pub struct Publisher {
+pub struct PublisherEntity {
     id: i64,
     name: String,
 }
 
-impl Publisher {
-    pub fn id(&self) -> i64 {
-        self.id
-    }
-
-    pub fn name(&self) -> &str {
-        &self.name
-    }
-}
-
+/// 출판사 API 검색시 사용할 키워드
 #[derive(Queryable, Selectable, Identifiable, Associations, Debug, PartialEq)]
 #[diesel(table_name = crate::book::schema::publisher_keyword)]
 #[diesel(primary_key(publisher_id, keyword))]
 #[diesel(belongs_to(Publisher, foreign_key = publisher_id))]
-pub struct PublisherKeyword {
+struct PublisherKeywordEntity {
     publisher_id: i64,
     keyword: String,
 }
 
-impl PublisherKeyword {
-    pub fn publisher_id(&self) -> i64 {
-        self.publisher_id
-    }
-
-    pub fn keyword(&self) -> &str {
-        &self.keyword
-    }
-}
-
 /// 도서 시리즈 모델
-pub struct Series {
+struct SeriesEntity {
     id: u64,
     name: String,
 
     isbn: Option<String>,
 }
 
-impl Series {
-    pub fn id(&self) -> u64 {
-        self.id
-    }
-
-    pub fn name(&self) -> &str {
-        &self.name
-    }
-
-    pub fn isbn(&self) -> &Option<String> {
-        &self.isbn
-    }
-}
-
 /// 도서 모델
-pub struct Book {
+struct BookEntity {
     id: u64,
     isbn: String,
     title: String,
@@ -75,28 +47,26 @@ pub struct Book {
     series_id: u64,
 }
 
-impl Book {
-    pub fn id(&self) -> u64 {
-        self.id
-    }
+pub fn find_publisher_all(conn: &mut PgConnection) -> Vec<Publisher> {
+    let publisher_with_keywords: Vec<(PublisherEntity, Option<PublisherKeywordEntity>)> = publisher::table()
+        .left_join(publisher_keyword::table())
+        .select((PublisherEntity::as_select(), Option::<PublisherKeywordEntity>::as_select()))
+        .load::<(PublisherEntity, Option<PublisherKeywordEntity>)>(conn)
+        .unwrap();
 
-    pub fn isbn(&self) -> &str {
-        &self.isbn
-    }
+    let mut map = HashMap::<u64, Publisher>::new();
+    publisher_with_keywords.iter().for_each(|item| {
+        let publisher_entity = &item.0;
+        let keyword_entity = &item.1;
 
-    pub fn title(&self) -> &str {
-        &self.title
-    }
+        let id = publisher_entity.id as u64;
+        let publ = map.entry(id)
+            .or_insert_with(|| Publisher::new(id, publisher_entity.name.clone()));
 
-    pub fn scheduled_pub_date(&self) -> Option<NaiveDate> {
-        self.scheduled_pub_date
-    }
+        if let Some(k) = keyword_entity {
+            publ.add_keyword(k.keyword.clone())
+        }
+    });
 
-    pub fn actual_pub_date(&self) -> Option<NaiveDate> {
-        self.actual_pub_date
-    }
-
-    pub fn series_id(&self) -> u64 {
-        self.series_id
-    }
+    map.into_values().collect()
 }

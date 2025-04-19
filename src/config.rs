@@ -1,4 +1,5 @@
 use config;
+use diesel::{Connection, PgConnection};
 use serde::Deserialize;
 use std::env;
 
@@ -51,4 +52,11 @@ pub fn load_config() -> Result<AppConfig, config::ConfigError> {
         .build()?;
 
     config.try_deserialize()
+}
+
+pub fn connect_to_database(db: &Database) -> PgConnection {
+    let database_url = format!("postgres://{}:{}@{}:{}/{}", db.username(), db.password(), db.host(), db.port(), db.dbname());
+
+    PgConnection::establish(&database_url)
+        .unwrap_or_else(|_| panic!("Error connecting to {}", database_url))
 }
