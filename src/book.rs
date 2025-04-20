@@ -49,7 +49,7 @@ impl PartialEq<Self> for Publisher {
 }
 
 pub type Site = String;
-pub type Json = HashMap<String, dyn Any>;
+pub type Json = String;
 
 pub struct Book {
     pub id: u64,

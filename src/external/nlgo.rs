@@ -1,8 +1,8 @@
-use crate::external::error::ClientError;
+use crate::external::error::{ClientError, RequestError};
+use chrono::NaiveDate;
 use serde::Deserialize;
 use serde_with::serde_as;
 use serde_with::DisplayFromStr;
-use chrono::NaiveDate;
 
 /// 국립중앙도서관 ISBN 도서정보 검색 API 엔드포인트 URL
 const ISBN_SEARCH_ENDPOINT: &'static str = "https://www.nl.go.kr/seoji/SearchApi.do";
@@ -161,11 +161,27 @@ impl RequestBuilder {
         self
     }
 
-    pub fn build(self) -> Result<Request, &'static str> {
-        let publisher = self.publisher.ok_or("출판사는 반드시 입력 되어야 합니다.")?;
-        let start_pub_date = self.start_pub_date.ok_or("출판 시작일은 반드시 입력 되어야 합니다.")?;
-        let end_pub_date = self.end_pub_date.ok_or("출판 종료일은 반드시 입력 되어야 합니다.")?;
+    pub fn build(self) -> Result<Request, RequestError> {
+        let publisher = self.publisher
+            .ok_or_else(|| RequestError::MissingRequiredParameter("publisher".to_string()))?;
 
+        let start_pub_date = self.start_pub_date
+            .ok_or_else(|| RequestError::MissingRequiredParameter("start_pub_date".to_string()))?;
+
+        let end_pub_date = self.end_pub_date
+            .ok_or_else(|| RequestError::MissingRequiredParameter("end_pub_date".to_string()))?;
+
+        if end_pub_date < start_pub_date {
+            return Err(RequestError::InvalidParameter(
+                "종료 날짜는 시작 날짜 이후여야 합니다".to_string()
+            ));
+        }
+
+        if self.size <= 0 {
+            return Err(RequestError::InvalidParameter(
+                "페이지 크기는 양수여야 합니다".to_string()
+            ));
+        }
         Ok(Request {
             page: self.page,
             size: self.size,
