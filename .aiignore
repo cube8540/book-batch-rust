@@ -1,0 +1,28 @@
+# Ignore build output directories
+target/
+out/
+
+# Ignore Maven wrapper files
+.mvn/
+
+# Ignore project files
+.idea/
+*.iml
+
+# Ignore compiled Java class files
+*.class
+
+# Ignore all .java files except the ones from the 'src/main' folder
+*.java
+!src/main/**/*.java
+
+# Ignore test reports and test directories
+test-results/
+allure-results/
+
+# Ignore logs and temporary files
+logs/
+*.log
+*.tmp
+
+config/**

@@ -1,3 +1,4 @@
+use std::any::Any;
 use diesel::associations::HasTable;
 use diesel::{PgConnection, QueryDsl, SelectableHelper};
 use std::collections::HashMap;
@@ -15,11 +16,11 @@ pub struct Publisher {
 }
 
 impl Publisher {
-    fn new(id: u64, n: String) -> Self {
+    fn new(id: u64, name: String) -> Self {
         let keywords: Vec<String> = Vec::new();
         Publisher{
             id,
-            name: n,
+            name,
             keywords
         }
     }
@@ -45,6 +46,20 @@ impl PartialEq<Self> for Publisher {
     fn eq(&self, other: &Self) -> bool {
         self.id == other.id
     }
+}
+
+pub type Site = String;
+pub type Json = HashMap<String, dyn Any>;
+
+pub struct Book {
+    pub id: u64,
+    pub isbn: String,
+    pub publisher_id: u64,
+    pub series_id: u64,
+    pub title: String,
+    pub scheduled_pub_date: chrono::NaiveDate,
+    pub actual_pub_date: chrono::NaiveDate,
+    pub origin_data: HashMap<Site, Json>,
 }
 
 pub fn get_publisher_all(conn: &mut PgConnection) -> Vec<Publisher> {

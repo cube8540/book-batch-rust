@@ -35,13 +35,45 @@ impl Database {
 }
 
 #[derive(Debug, Deserialize)]
+pub struct API {
+    nlgo: Credentials
+}
+
+#[derive(Debug, Deserialize)]
+pub struct Credentials {
+    key: String,
+    secret: String
+}
+
+impl API {
+    pub fn nlgo(&self) -> &Credentials {
+        &self.nlgo
+    }
+}
+
+impl Credentials {
+    pub fn key(&self) -> &str {
+        &self.key
+    }
+
+    pub fn secret(&self) -> &str {
+        &self.secret
+    }
+}
+
+#[derive(Debug, Deserialize)]
 pub struct AppConfig {
-    db: Database
+    db: Database,
+    api: API,
 }
 
 impl AppConfig {
     pub fn db(&self) -> &Database {
         &self.db
+    }
+
+    pub fn api(&self) -> &API {
+        &self.api
     }
 }
 
