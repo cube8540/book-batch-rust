@@ -36,7 +36,8 @@ impl Database {
 
 #[derive(Debug, Deserialize)]
 pub struct API {
-    nlgo: Credentials
+    nlgo: Credentials,
+    aladin: Credentials
 }
 
 #[derive(Debug, Deserialize)]
@@ -48,6 +49,10 @@ pub struct Credentials {
 impl API {
     pub fn nlgo(&self) -> &Credentials {
         &self.nlgo
+    }
+
+    pub fn aladin(&self) -> &Credentials {
+        &self.aladin
     }
 }
 

@@ -1,44 +1,53 @@
+use crate::external::aladinkr;
+use crate::external::error::ClientError;
+
 mod book;
 mod config;
 mod external;
 
-fn main() {
-    // 설정 로드
-    let config = config::load_config()
-        .unwrap_or_else(|e| panic!("{}", e));
+// 출판사별 책 정보를 가져오는 함수
+fn get_books(key: &str, publisher: &str) -> Result<Vec<aladinkr::BookItem>, ClientError> {
 
-    // API 클라이언트 생성
-    let client = external::nlgo::Client::new(config.api().nlgo().key().to_string());
+    // 알라딘 API 클라이언트 생성
+    let client = aladinkr::Client::new(key);
 
-    // 요청 생성
-    let request = external::nlgo::Request::builder()
-        .publisher("대원씨아이")
-        .start_pub_date(chrono::NaiveDate::from_ymd_opt(2025, 1, 1).unwrap())
-        .end_pub_date(chrono::NaiveDate::from_ymd_opt(2025, 12, 31).unwrap())
-        .page(2)
-        .size(20)
+    // 요청 객체 생성
+    let request = aladinkr::Request::builder()
+        .query(publisher)  // 출판사 이름으로 검색
+        .start(1)          // 첫 번째 페이지부터 시작
+        .max_results(10)   // 10개 결과만 가져오기
         .build()
-        .unwrap();
+        .map_err(|e| ClientError::RequestFailed(format!("요청 생성 실패: {}", e)))?;
 
-    // API 호출 및 결과 처리
-    match client.get_books(request) {
-        Ok(response) => {
-            println!("총 검색 결과: {} 건", response.total_count);
-            println!("현재 페이지: {}", response.page_no);
-            println!("\n검색된 도서 목록:");
+    // 검색 실행 및 결과 반환
+    let response = client.get_books(request)?;
+    Ok(response.items)
+}
 
-            for (index, doc) in response.docs.iter().enumerate() {
-                println!("\n도서 #{}", index + 1);
-                println!("제목: {}", doc.title);
-                println!("ISBN: {}", doc.ea_isbn);
-                println!("출판사: {}", doc.publisher);
-                println!("저자: {}", doc.author);
-                println!("출판일: {}", doc.real_publish_date);
+fn main() {
+    let config = config::load_config().unwrap();
+    // 테스트할 출판사 이름
+    let publisher = "소미미디어";
+
+    println!("'{}' 출판사의 책을 검색합니다...", publisher);
+
+    // 책 정보 가져오기
+    match get_books(config.api().aladin().key(), publisher) {
+        Ok(books) => {
+            println!("총 {}권의 책을 찾았습니다:", books.len());
+
+            // 책 정보 출력
+            for (i, book) in books.iter().enumerate() {
+                println!("{}. {} | 저자: {} | 가격: {}원",
+                         i + 1,
+                         book.title,
+                         book.author,
+                         book.price_sales
+                );
             }
         },
-        Err(err) => {
-            eprintln!("Error fetching books: {:?}", err);
+        Err(e) => {
+            eprintln!("오류 발생: {:?}", e);
         }
     }
-
 }
