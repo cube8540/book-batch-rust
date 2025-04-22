@@ -1,9 +1,11 @@
 use crate::book::schema::publisher::dsl::publisher;
 use crate::book::schema::publisher_keyword::dsl::publisher_keyword;
 
+use crate::book::schema::book::dsl::book;
+use crate::book::schema::book::isbn;
 use chrono::NaiveDate;
 use diesel::associations::HasTable;
-use diesel::{Associations, Identifiable, PgConnection, QueryDsl, Queryable, RunQueryDsl, Selectable, SelectableHelper};
+use diesel::{Associations, Connection, ExpressionMethods, Identifiable, PgConnection, QueryDsl, Queryable, RunQueryDsl, Selectable, SelectableHelper};
 
 /// 출판사 모델
 #[derive(Queryable, Selectable, Identifiable, Debug, PartialEq)]
@@ -24,25 +26,25 @@ pub struct PublisherKeywordEntity {
 }
 
 /// 도서 시리즈 모델
+#[derive(Queryable, Selectable, Identifiable, Debug, PartialEq)]
+#[diesel(table_name = crate::book::schema::series)]
 pub struct SeriesEntity {
-    id: u64,
-    name: String,
-
-    isbn: Option<String>,
+    pub id: i64,
+    pub name: String,
+    pub isbn: Option<String>,
 }
 
 /// 도서 모델
+#[derive(Queryable, Selectable, Identifiable, Debug, PartialEq)]
+#[diesel(table_name = crate::book::schema::book)]
 pub struct BookEntity {
-    id: u64,
-    isbn: String,
-    title: String,
-
-    // 예정된 출판일
-    scheduled_pub_date: Option<NaiveDate>,
-    // 실제 출판일
-    actual_pub_date: Option<NaiveDate>,
-
-    series_id: u64,
+    pub id: i64,
+    pub isbn: String,
+    pub title: String,
+    pub publisher_id: i64,
+    pub scheduled_pub_date: Option<NaiveDate>,
+    pub actual_pub_date: Option<NaiveDate>,
+    pub series_id: Option<i64>,
 }
 
 pub fn find_publisher_all(conn: &mut PgConnection) -> Vec<(PublisherEntity, Option<PublisherKeywordEntity>)> {
@@ -51,4 +53,13 @@ pub fn find_publisher_all(conn: &mut PgConnection) -> Vec<(PublisherEntity, Opti
         .select((PublisherEntity::as_select(), Option::<PublisherKeywordEntity>::as_select()))
         .load::<(PublisherEntity, Option<PublisherKeywordEntity>)>(conn)
         .unwrap()
+}
+
+pub fn find_book_by_isbn(key: &str, conn: &mut PgConnection) -> Vec<BookEntity> {
+    book
+        .filter(isbn.eq(key.to_string()))
+        .select(BookEntity::as_select())
+        .load::<BookEntity>(conn)
+        .unwrap_or_default()
+
 }
