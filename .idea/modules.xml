@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/book-batch-rust.iml" filepath="$PROJECT_DIR$/book-batch-rust.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/book-batch-rust.iml" filepath="$PROJECT_DIR$/.idea/book-batch-rust.iml" />
     </modules>
   </component>
 </project>

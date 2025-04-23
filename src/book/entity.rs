@@ -30,7 +30,7 @@ pub struct PublisherKeywordEntity {
 #[diesel(table_name = crate::book::schema::series)]
 pub struct SeriesEntity {
     pub id: i64,
-    pub name: String,
+    pub name: Option<String>,
     pub isbn: Option<String>,
 }
 
