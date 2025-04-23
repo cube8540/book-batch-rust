@@ -18,7 +18,7 @@ create sequence if not exists books.series_id_seq;
 create table if not exists books.series(
                                            id bigint not null primary key default nextval('books.series_id_seq'),
                                            name varchar(256),
-                                           isbn varchar(13) not null unique
+                                           isbn varchar(13) unique
 );
 alter sequence if exists books.series_id_seq owned by books.series.id;
 

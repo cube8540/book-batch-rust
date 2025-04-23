@@ -6,7 +6,7 @@ use std::ops::Deref;
 
 mod entity;
 mod schema;
-mod repository;
+pub mod repository;
 
 /// 출판사 도메인
 #[derive(Debug)]
@@ -49,6 +49,13 @@ impl PartialEq<Self> for Publisher {
     }
 }
 
+#[derive(Debug)]
+pub struct Series {
+    pub id: u64,
+    pub name: Option<String>,
+    pub isbn: Option<String>,
+}
+
 pub type Site = String;
 pub type Json = String;
 
@@ -69,5 +76,11 @@ pub trait PublisherRepository {
 }
 
 pub trait BookRepository {
-    fn get_by_isbn(&self, isbn: &str) -> Vec<Book>;
+    fn get_by_isbn(&self, isbn: Vec<&str>) -> Vec<Book>;
+}
+
+pub trait SeriesRepository {
+    fn get_by_isbn(&self, isbn: Vec<&str>) -> Vec<Series>;
+
+    fn new_series(&self, isbn: Option<&str>, name: Option<&str>) -> Series;
 }

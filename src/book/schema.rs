@@ -35,7 +35,7 @@ diesel::table! {
         #[max_length = 256]
         name -> Nullable<Varchar>,
         #[max_length = 13]
-        isbn -> Varchar,
+        isbn -> Nullable<Varchar>,
     }
 }
 
