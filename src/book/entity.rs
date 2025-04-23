@@ -1,13 +1,11 @@
-use crate::book::schema::publisher::dsl::publisher;
-use crate::book::schema::publisher_keyword::dsl::publisher_keyword;
-
 use crate::book::schema::book::dsl::book;
 use crate::book::schema::book::isbn;
+use crate::book::schema::publisher::dsl::publisher;
+use crate::book::schema::publisher_keyword::dsl::publisher_keyword;
 use chrono::NaiveDate;
 use diesel::associations::HasTable;
 use diesel::{Associations, Connection, ExpressionMethods, Identifiable, PgConnection, QueryDsl, Queryable, RunQueryDsl, Selectable, SelectableHelper};
 
-/// 출판사 모델
 #[derive(Queryable, Selectable, Identifiable, Debug, PartialEq)]
 #[diesel(table_name = crate::book::schema::publisher)]
 pub struct PublisherEntity {
@@ -23,6 +21,14 @@ pub struct PublisherEntity {
 pub struct PublisherKeywordEntity {
     pub publisher_id: i64,
     pub keyword: String,
+}
+
+pub fn find_publisher_all(conn: &mut PgConnection) -> Vec<(PublisherEntity, Option<PublisherKeywordEntity>)> {
+    publisher::table()
+        .left_join(publisher_keyword::table())
+        .select((PublisherEntity::as_select(), Option::<PublisherKeywordEntity>::as_select()))
+        .load::<(PublisherEntity, Option<PublisherKeywordEntity>)>(conn)
+        .unwrap()
 }
 
 /// 도서 시리즈 모델
@@ -45,14 +51,6 @@ pub struct BookEntity {
     pub scheduled_pub_date: Option<NaiveDate>,
     pub actual_pub_date: Option<NaiveDate>,
     pub series_id: Option<i64>,
-}
-
-pub fn find_publisher_all(conn: &mut PgConnection) -> Vec<(PublisherEntity, Option<PublisherKeywordEntity>)> {
-    publisher::table()
-        .left_join(publisher_keyword::table())
-        .select((PublisherEntity::as_select(), Option::<PublisherKeywordEntity>::as_select()))
-        .load::<(PublisherEntity, Option<PublisherKeywordEntity>)>(conn)
-        .unwrap()
 }
 
 pub fn find_book_by_isbn(key: &str, conn: &mut PgConnection) -> Vec<BookEntity> {
