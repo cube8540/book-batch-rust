@@ -1,15 +1,20 @@
-use crate::external::error::{ClientError, RequestError};
+use crate::provider::error::ClientError;
+use crate::provider::Request;
+use crate::{book, provider};
 use reqwest::blocking;
 use serde::Deserialize;
+use std::collections::HashMap;
 
 /// 알라딘 API 엔드포인트 URL
-const ALADIN_API_ENDPOINT: &str = "https://www.aladin.co.kr/ttb/api/ItemSearch.aspx";
+const ALADIN_API_ENDPOINT: &'static str = "https://www.aladin.co.kr/ttb/api/ItemSearch.aspx";
 /// API 요청의 기본 타임아웃 시간(초)
 const DEFAULT_TIMEOUT_SECONDS: u64 = 10;
 /// 기본 페이지 번호
 const DEFAULT_PAGE: i32 = 1;
 /// 기본 페이지당 결과 개수
 const DEFAULT_SIZE: i32 = 10;
+
+pub const SITE: &'static str = "aladin";
 
 /// 알라딘 API 응답을 표현하는 구조체
 #[derive(Debug, Deserialize)]
@@ -87,75 +92,21 @@ pub struct BookItem {
     pub publisher: String,
 }
 
-/// API 요청 정보를 담는 구조체
-pub struct Request {
-    /// 검색 쿼리
-    query: String,
-    /// 시작 인덱스
-    start: i32,
-    /// 최대 결과 수
-    max_results: i32,
-}
-
-/// API 요청 빌더 구조체
-pub struct RequestBuilder {
-    /// 검색 쿼리 (선택적)
-    query: Option<String>,
-    /// 시작 인덱스
-    start: i32,
-    /// 최대 결과 수
-    max_results: i32,
-}
-
-impl Request {
-    pub fn builder() -> RequestBuilder {
-        RequestBuilder {
-            query: None,
-            start: DEFAULT_PAGE,
-            max_results: DEFAULT_SIZE,
-        }
-    }
-
-    pub fn query(&self) -> &str {
-        &self.query
-    }
-
-    pub fn start(&self) -> i32 {
-        self.start
-    }
-
-    pub fn max_results(&self) -> i32 {
-        self.max_results
-    }
-}
-
-impl RequestBuilder {
-    pub fn query(mut self, query: impl Into<String>) -> Self {
-        self.query = Some(query.into());
-        self
-    }
-
-    pub fn start(mut self, start: i32) -> Self {
-        self.start = start;
-        self
-    }
-
-    pub fn max_results(mut self, max_results: i32) -> Self {
-        self.max_results = max_results;
-        self
-    }
-
-    pub fn build(self) -> Result<Request, RequestError> {
-        let query = self.query.ok_or_else(||
-            RequestError::MissingRequiredParameter("query".to_string()))?;
-        if query.trim().is_empty() {
-            return Err(RequestError::InvalidParameter("검색어는 비어있을 수 없습니다".to_string()));
-        }
-        Ok(Request {
-            query,
-            start: self.start,
-            max_results: self.max_results,
-        })
+impl BookItem {
+    fn to_map(&self) -> HashMap<String, String> {
+        std::collections::HashMap::from([
+            ("title".to_string(), self.title.clone()),
+            ("link".to_string(), self.link.clone()),
+            ("author".to_string(), self.author.clone()),
+            ("pub_date".to_string(), self.pub_date.clone()),
+            ("description".to_string(), self.description.clone()),
+            ("isbn".to_string(), self.isbn.clone()),
+            ("isbn13".to_string(), self.isbn13.clone()),
+            ("item_id".to_string(), self.item_id.to_string()),
+            ("price_sales".to_string(), self.price_sales.to_string()),
+            ("price_standard".to_string(), self.price_standard.to_string()),
+            ("publisher".to_string(), self.publisher.clone()),
+        ])
     }
 }
 
@@ -165,22 +116,41 @@ pub struct Client {
     ttb_key: String,
 }
 
+
 impl Client {
-    pub fn new(ttb_key: impl Into<String>) -> Self {
+    pub fn new(ttb_key: &str) -> Self {
         Client {
-            ttb_key: ttb_key.into(),
+            ttb_key: ttb_key.to_string(),
         }
     }
 
-    /// 도서 정보 검색 수행
-    pub fn get_books(&self, request: Request) -> Result<AladinResponse, ClientError> {
+    fn build_search_url(&self, request: &Request) -> Result<reqwest::Url, ClientError> {
+        let mut url = reqwest::Url::parse(ALADIN_API_ENDPOINT)
+            .map_err(|_| ClientError::InvalidBaseUrl)?;
+
+        url.query_pairs_mut()
+            .append_pair("ttbkey", &self.ttb_key)
+            .append_pair("Query", &request.query.clone())
+            .append_pair("QueryType", "Publisher")  // Publisher로 고정
+            .append_pair("start", &request.page.to_string())
+            .append_pair("MaxResults", &request.size.to_string())
+            .append_pair("SearchTarget", "Book")  // Book으로 고정
+            .append_pair("output", "js") // JS로 고정
+            .append_pair("Version", "20131101")
+            .append_pair("Sort", "PublishTime");
+
+        Ok(url)
+    }
+}
+
+impl provider::Client for Client {
+    fn get_books(&self, request: &Request) -> Result<provider::Response, ClientError> {
         let client = blocking::Client::builder()
             .timeout(std::time::Duration::from_secs(DEFAULT_TIMEOUT_SECONDS))
             .build()
             .map_err(|e| ClientError::RequestFailed(format!("클라이언트 생성 실패: {}", e)))?;
 
         let url = self.build_search_url(&request)?;
-
         let response = client.get(url)
             .send()
             .map_err(|err| ClientError::RequestFailed(err.to_string()))?;
@@ -192,25 +162,29 @@ impl Client {
         let text = response.text()
             .map_err(|err| ClientError::ResponseTextExtractionFailed(err.to_string()))?;
 
-        serde_json::from_str::<AladinResponse>(&text)
-            .map_err(|err| ClientError::ResponseParseFailed(err.to_string()))
+        let parsed_response = serde_json::from_str::<AladinResponse>(&text)
+            .map_err(|err| ClientError::ResponseParseFailed(err.to_string()))?;
+
+        let books = parsed_response.items.iter()
+            .map(|item| convert_item_to_book(item));
+
+        Ok(provider::Response{
+            total_count: parsed_response.total_results,
+            page_no: parsed_response.start_index,
+            site: SITE.to_string(),
+            books: books.collect(),
+        })
     }
+}
 
-    fn build_search_url(&self, request: &Request) -> Result<reqwest::Url, ClientError> {
-        let mut url = reqwest::Url::parse(ALADIN_API_ENDPOINT)
-            .map_err(|_| ClientError::InvalidBaseUrl)?;
-
-        url.query_pairs_mut()
-            .append_pair("ttbkey", &self.ttb_key)
-            .append_pair("Query", &request.query())
-            .append_pair("QueryType", "Publisher")  // Publisher로 고정
-            .append_pair("start", &request.start().to_string())
-            .append_pair("MaxResults", &request.max_results().to_string())
-            .append_pair("SearchTarget", "Book")  // Book으로 고정
-            .append_pair("output", "js") // JS로 고정
-            .append_pair("Version", "20131101")
-            .append_pair("Sort", "PublishTime");
-
-        Ok(url)
+fn convert_item_to_book(item: &BookItem) -> book::Book {
+    book::Book {
+        id: 0,
+        isbn: item.isbn13.clone(),
+        publisher_id: 0,
+        title: item.title.clone(),
+        scheduled_pub_date: None,
+        actual_pub_date: chrono::NaiveDate::parse_from_str(item.pub_date.as_str(), "%Y-%m-%d").ok(),
+        origin_data: HashMap::from([(SITE.to_string(), item.to_map())]),
     }
 }
