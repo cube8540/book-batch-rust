@@ -6,12 +6,12 @@ create table if not exists books.publisher (
 );
 alter sequence if exists books.publisher_id_seq owned by books.publisher.id;
 
-create table if not exists books.publisher_keyword(
-                                                publisher_id bigint not null,
-                                                keyword varchar(128) not null,
-
-                                                primary key (publisher_id, keyword),
-                                                foreign key (publisher_id) references books.publisher(id)
+create table books.publisher_keyword (
+                                   publisher_id bigint not null ,
+                                   site varchar(32) not null ,
+                                   keyword varchar(256) not null ,
+                                   primary key (publisher_id, site, keyword),
+                                   foreign key (publisher_id) references books.publisher(id)
 );
 
 create sequence if not exists books.series_id_seq;

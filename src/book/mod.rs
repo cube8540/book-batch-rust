@@ -13,21 +13,23 @@ pub mod repository;
 pub struct Publisher {
     id: u64,
     name: String,
-    keywords: Vec<String>
+    keywords: HashMap<Site, Vec<String>>,
 }
 
 impl Publisher {
     pub fn new(id: u64, name: String) -> Self {
-        let keywords: Vec<String> = Vec::new();
         Publisher{
             id,
             name,
-            keywords
+            keywords: HashMap::new(),
         }
     }
 
-    pub fn add_keyword(&mut self, keyword: String) {
-        self.keywords.push(keyword);
+    pub fn add_keyword(&mut self, site: Site, keyword: String) {
+        self.keywords
+            .entry(site)
+            .or_insert_with(Vec::new)
+            .push(keyword);
     }
 
     pub fn id(&self) -> u64 {
@@ -38,8 +40,11 @@ impl Publisher {
         &self.name
     }
 
-    pub fn keywords(&self) -> &Vec<String> {
-        &self.keywords
+    pub fn keywords(&self, site: Site) -> Vec<String> {
+        self.keywords
+            .get(&site)
+            .unwrap_or(&Vec::new())
+            .to_vec()
     }
 }
 

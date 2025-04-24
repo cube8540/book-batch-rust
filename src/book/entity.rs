@@ -17,6 +17,7 @@ pub struct PublisherEntity {
 #[diesel(belongs_to(PublisherEntity, foreign_key = publisher_id))]
 pub struct PublisherKeywordEntity {
     pub publisher_id: i64,
+    pub site: String,
     pub keyword: String,
 }
 

@@ -23,6 +23,8 @@ diesel::table! {
 diesel::table! {
     books.publisher_keyword (publisher_id, keyword) {
         publisher_id -> Int8,
+        #[max_length = 32]
+        site -> Varchar,
         #[max_length = 128]
         keyword -> Varchar,
     }
