@@ -13,7 +13,7 @@ const DEFAULT_PAGE: i32 = 1;
 /// 페이지당 기본 결과 수
 const DEFAULT_SIZE: i32 = 50;
 
-pub const SITE: &'static str = "nlgo";
+pub const SITE: &'static str = "NLGO";
 
 /// 국립중앙도서관 API에서 반환하는 도서 정보 구조체
 #[derive(Deserialize)]

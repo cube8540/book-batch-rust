@@ -14,7 +14,7 @@ const DEFAULT_PAGE: i32 = 1;
 /// 기본 페이지당 결과 개수
 const DEFAULT_SIZE: i32 = 10;
 
-pub const SITE: &'static str = "aladin";
+pub const SITE: &'static str = "ALADIN";
 
 /// 알라딘 API 응답을 표현하는 구조체
 #[derive(Debug, Deserialize)]
