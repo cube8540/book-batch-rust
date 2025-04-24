@@ -9,7 +9,6 @@ diesel::table! {
         publisher_id -> Int8,
         scheduled_pub_date -> Nullable<Date>,
         actual_pub_date -> Nullable<Date>,
-        series_id -> Nullable<Int8>,
     }
 }
 
@@ -29,23 +28,11 @@ diesel::table! {
     }
 }
 
-diesel::table! {
-    books.series (id) {
-        id -> Int8,
-        #[max_length = 256]
-        name -> Nullable<Varchar>,
-        #[max_length = 13]
-        isbn -> Nullable<Varchar>,
-    }
-}
-
 diesel::joinable!(book -> publisher (publisher_id));
-diesel::joinable!(book -> series (series_id));
 diesel::joinable!(publisher_keyword -> publisher (publisher_id));
 
 diesel::allow_tables_to_appear_in_same_query!(
     book,
     publisher,
     publisher_keyword,
-    series,
-    );
+);

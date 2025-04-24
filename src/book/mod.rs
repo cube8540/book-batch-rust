@@ -49,22 +49,14 @@ impl PartialEq<Self> for Publisher {
     }
 }
 
-#[derive(Debug)]
-pub struct Series {
-    pub id: u64,
-    pub name: Option<String>,
-    pub isbn: Option<String>,
-}
-
 pub type Site = String;
-pub type Json = String;
+pub type Json = HashMap<String, String>;
 
 #[derive(Debug)]
 pub struct Book {
     pub id: u64,
     pub isbn: String,
     pub publisher_id: u64,
-    pub series_id: Option<u64>,
     pub title: String,
     pub scheduled_pub_date: Option<chrono::NaiveDate>,
     pub actual_pub_date: Option<chrono::NaiveDate>,
@@ -77,10 +69,4 @@ pub trait PublisherRepository {
 
 pub trait BookRepository {
     fn get_by_isbn(&self, isbn: Vec<&str>) -> Vec<Book>;
-}
-
-pub trait SeriesRepository {
-    fn get_by_isbn(&self, isbn: Vec<&str>) -> Vec<Series>;
-
-    fn new_series(&self, isbn: Option<&str>, name: Option<&str>) -> Series;
 }
