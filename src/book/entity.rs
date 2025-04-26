@@ -1,7 +1,8 @@
+use crate::book;
 use crate::book::schema;
-use chrono::NaiveDate;
+use chrono::{NaiveDate, NaiveDateTime};
 use diesel::associations::HasTable;
-use diesel::{Associations, Connection, ExpressionMethods, Identifiable, PgConnection, QueryDsl, Queryable, RunQueryDsl, Selectable, SelectableHelper};
+use diesel::{Associations, Connection, ExpressionMethods, Identifiable, Insertable, PgConnection, QueryDsl, Queryable, RunQueryDsl, Selectable, SelectableHelper};
 
 #[derive(Queryable, Selectable, Identifiable, Debug, PartialEq)]
 #[diesel(table_name = schema::publisher)]
@@ -39,12 +40,45 @@ pub struct BookEntity {
     pub publisher_id: i64,
     pub scheduled_pub_date: Option<NaiveDate>,
     pub actual_pub_date: Option<NaiveDate>,
+    pub registered_at: NaiveDateTime,
 }
 
-pub fn find_book_by_isbn(conn: &mut PgConnection, isbn: Vec<&str>) -> Vec<BookEntity> {
+impl BookEntity {
+    pub fn to_domain(&self) -> book::Book {
+        book::Book {
+            id: self.id as u64,
+            isbn: self.isbn.clone(),
+            publisher_id: self.publisher_id as u64,
+            title: self.title.clone(),
+            scheduled_pub_date: self.scheduled_pub_date.clone(),
+            actual_pub_date: self.actual_pub_date.clone(),
+            origin_data: Default::default(),
+        }
+    }
+}
+
+#[derive(Insertable, Debug, PartialEq)]
+#[diesel(table_name = schema::book)]
+pub struct NewBookEntity<'a> {
+    pub isbn: &'a str,
+    pub title: &'a str,
+    pub publisher_id: i64,
+    pub scheduled_pub_date: Option<NaiveDate>,
+    pub actual_pub_date: Option<NaiveDate>,
+    pub registered_at: NaiveDateTime,
+}
+
+pub fn find_book_by_isbn(conn: &mut PgConnection, isbn: &Vec<&str>) -> Vec<BookEntity> {
     schema::book::dsl::book
         .filter(schema::book::isbn.eq_any(isbn))
         .select(BookEntity::as_select())
         .load(conn)
         .unwrap_or_default()
+}
+
+pub fn insert_books(conn: &mut PgConnection, books: Vec<NewBookEntity>) -> Vec<BookEntity> {
+    diesel::insert_into(schema::book::table)
+        .values(books)
+        .get_results(conn)
+        .expect("Error inserting new books.")
 }

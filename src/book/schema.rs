@@ -9,6 +9,7 @@ diesel::table! {
         publisher_id -> Int8,
         scheduled_pub_date -> Nullable<Date>,
         actual_pub_date -> Nullable<Date>,
+        registered_at -> Timestamp,
     }
 }
 

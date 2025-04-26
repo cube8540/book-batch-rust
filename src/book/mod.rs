@@ -1,8 +1,4 @@
-use diesel::associations::HasTable;
-use diesel::{QueryDsl, SelectableHelper};
-use std::any::Any;
 use std::collections::HashMap;
-use std::ops::Deref;
 
 mod entity;
 mod schema;
@@ -57,7 +53,7 @@ impl PartialEq<Self> for Publisher {
 pub type Site = String;
 pub type Json = HashMap<String, String>;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Book {
     pub id: u64,
     pub isbn: String,
@@ -73,5 +69,7 @@ pub trait PublisherRepository {
 }
 
 pub trait BookRepository {
-    fn get_by_isbn(&self, isbn: Vec<&str>) -> Vec<Book>;
+    fn get_by_isbn(&self, isbn: &Vec<&str>) -> Vec<Book>;
+
+    fn new_books(&self, books: &Vec<Book>) -> Vec<Book>;
 }

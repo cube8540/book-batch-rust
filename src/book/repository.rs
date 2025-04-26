@@ -1,6 +1,7 @@
 use crate::book::{entity, Book, BookRepository, Publisher, PublisherRepository};
 use diesel::PgConnection;
 use std::collections::HashMap;
+use chrono::Utc;
 
 type DbPool = r2d2::Pool<diesel::r2d2::ConnectionManager<PgConnection>>;
 type DbConnection = r2d2::PooledConnection<diesel::r2d2::ConnectionManager<PgConnection>>;
@@ -54,23 +55,35 @@ impl DieselBookRepository {
 }
 
 impl BookRepository for DieselBookRepository {
-    fn get_by_isbn(&self, isbn: Vec<&str>) -> Vec<Book> {
+    fn get_by_isbn(&self, isbn: &Vec<&str>) -> Vec<Book> {
         let mut conn = self.pool
             .get()
             .expect("Failed to get db connection from pool");
         let result_set = entity::find_book_by_isbn(&mut conn, isbn);
         result_set.iter()
-            .map(|book| {
-                Book {
-                    id: book.id as u64,
-                    isbn: book.isbn.clone(),
-                    publisher_id: book.publisher_id as u64,
-                    title: book.title.clone(),
-                    scheduled_pub_date: book.scheduled_pub_date.clone(),
-                    actual_pub_date: book.actual_pub_date.clone(),
-                    origin_data: Default::default(),
-                }
-            })
+            .map(|book| book.to_domain())
             .collect()
     }
+
+    fn new_books(&self, books: &Vec<Book>) -> Vec<Book> {
+        let mut conn = self.pool
+            .get()
+            .expect("Failed to get db connection from pool");
+
+        let new_entities: Vec<entity::NewBookEntity> = books
+            .iter()
+            .map(|book| entity::NewBookEntity {
+                isbn: &book.isbn,
+                title: &book.title,
+                publisher_id: book.publisher_id as i64,
+                scheduled_pub_date: book.scheduled_pub_date,
+                actual_pub_date: book.actual_pub_date,
+                registered_at: Utc::now().naive_utc(),
+            })
+            .collect();
+
+        let results = entity::insert_books(&mut conn, new_entities);
+        results.into_iter().map(|result| result.to_domain()).collect()
+    }
+
 }

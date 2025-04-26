@@ -31,6 +31,7 @@ create table if not exists books.book(
                                          scheduled_pub_date date ,
                                          actual_pub_date date,
                                          series_id bigint,
+                                         registered_at timestamp not null default now(),
 
                                          foreign key (publisher_id) references books.publisher(id),
                                          foreign key (series_id) references books.series(id)
