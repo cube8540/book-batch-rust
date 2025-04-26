@@ -6,12 +6,6 @@ use std::collections::HashMap;
 
 /// 국립중앙도서관 ISBN 도서정보 검색 API 엔드포인트 URL
 const ISBN_SEARCH_ENDPOINT: &'static str = "https://www.nl.go.kr/seoji/SearchApi.do";
-/// API 요청 시 기본 타임아웃 시간(초)
-const DEFAULT_TIMEOUT_SECONDS: i64 = 10;
-/// 검색 결과 기본 페이지 번호
-const DEFAULT_PAGE: i32 = 1;
-/// 페이지당 기본 결과 수
-const DEFAULT_SIZE: i32 = 50;
 
 pub const SITE: &'static str = "NLGO";
 
@@ -164,7 +158,7 @@ impl provider::Client for Client {
     }
 }
 
-fn convert_doc_to_book(doc: &Doc) -> book::Book {
+fn convert_doc_to_book(doc: &Doc) -> Box<book::Book> {
     let scheduled_pub_date = if doc.publish_predate != "" {
         chrono::NaiveDate::parse_from_str(&doc.publish_predate, "%Y%m%d").ok()
     } else {
@@ -175,7 +169,7 @@ fn convert_doc_to_book(doc: &Doc) -> book::Book {
     } else {
         None
     };
-    book::Book {
+    Box::new(book::Book {
         id: 0,
         isbn: doc.ea_isbn.clone(),
         publisher_id: 0,
@@ -183,5 +177,5 @@ fn convert_doc_to_book(doc: &Doc) -> book::Book {
         scheduled_pub_date,
         actual_pub_date,
         origin_data: HashMap::from([(SITE.to_string(), doc.to_map())]),
-    }
+    })
 }

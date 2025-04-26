@@ -9,10 +9,6 @@ use std::collections::HashMap;
 const ALADIN_API_ENDPOINT: &'static str = "https://www.aladin.co.kr/ttb/api/ItemSearch.aspx";
 /// API 요청의 기본 타임아웃 시간(초)
 const DEFAULT_TIMEOUT_SECONDS: u64 = 10;
-/// 기본 페이지 번호
-const DEFAULT_PAGE: i32 = 1;
-/// 기본 페이지당 결과 개수
-const DEFAULT_SIZE: i32 = 10;
 
 pub const SITE: &'static str = "ALADIN";
 
@@ -177,8 +173,8 @@ impl provider::Client for Client {
     }
 }
 
-fn convert_item_to_book(item: &BookItem) -> book::Book {
-    book::Book {
+fn convert_item_to_book(item: &BookItem) -> Box<book::Book> {
+    Box::new(book::Book {
         id: 0,
         isbn: item.isbn13.clone(),
         publisher_id: 0,
@@ -186,5 +182,5 @@ fn convert_item_to_book(item: &BookItem) -> book::Book {
         scheduled_pub_date: None,
         actual_pub_date: chrono::NaiveDate::parse_from_str(item.pub_date.as_str(), "%Y-%m-%d").ok(),
         origin_data: HashMap::from([(SITE.to_string(), item.to_map())]),
-    }
+    })
 }
