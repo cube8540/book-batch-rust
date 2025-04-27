@@ -1,3 +1,4 @@
+use regex::Regex;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -109,12 +110,42 @@ pub struct BookOriginFilter {
 }
 
 impl BookOriginFilter {
-    
+    pub fn validate(&self, origin_data: &Json) -> bool {
+        if let Some(operator) = &self.operator {
+            match operator {
+                Operator::AND => {
+                    self.children.iter().all(|child| child.borrow().validate(origin_data))
+                }
+                Operator::OR => {
+                    self.children.iter().any(|child| child.borrow().validate(origin_data))
+                }
+                Operator::NOR => {
+                    self.children.iter().all(|child| !child.borrow().validate(origin_data))
+                }
+                Operator::NAND => {
+                    !self.children.iter().all(|child| child.borrow().validate(origin_data))
+                }
+            }
+        } else if let (Some(regex), Some(property_name)) = (&self.regex, &self.property_name) {
+            let regex = Regex::new(regex).unwrap();
+            if let Some(value) = origin_data.get(property_name) {
+                regex.is_match(value)
+            } else {
+                false
+            }
+        } else {
+            false
+        }
+    }
+}
+
+impl BookOriginFilter {
+
     pub fn add_child(&mut self, child: Rc<RefCell<BookOriginFilter>>) {
         self.children.push(child);
     }
 }
 
 pub trait BookOriginFilterRepository {
-    fn get_root_filters(&self) -> Vec<Rc<RefCell<BookOriginFilter>>>;
+    fn get_root_filters(&self) -> HashMap<Site, Rc<RefCell<BookOriginFilter>>>;
 }

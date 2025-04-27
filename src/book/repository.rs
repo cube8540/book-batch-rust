@@ -1,4 +1,4 @@
-use crate::book::{entity, Book, BookOriginFilter, BookOriginFilterRepository, BookRepository, Publisher, PublisherRepository};
+use crate::book::{entity, Book, BookOriginFilter, BookOriginFilterRepository, BookRepository, Publisher, PublisherRepository, Site};
 use chrono::Utc;
 use diesel::PgConnection;
 use std::cell::RefCell;
@@ -120,16 +120,20 @@ impl DieselBookOriginFilterRepository {
                 parent.borrow_mut().add_child(filter.clone());
             }
         }
-        
+
         items
     }
 }
 
 impl BookOriginFilterRepository for DieselBookOriginFilterRepository {
-    fn get_root_filters(&self) -> Vec<Rc<RefCell<BookOriginFilter>>> {
+    fn get_root_filters(&self) -> HashMap<Site, BookOriginFilterRef> {
+        let mut map = HashMap::new();
         self.get_all().into_iter()
-            .map(|(filter, _)| filter)
-            .filter(|b| b.borrow().is_root)
-            .collect()
+            .for_each(|(filter, _)| {
+                if filter.borrow().is_root {
+                    map.insert(filter.borrow().site.clone(), filter.clone());
+                }
+            });
+        map
     }
 }
