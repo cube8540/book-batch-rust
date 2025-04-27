@@ -1,8 +1,7 @@
 use crate::book;
-use crate::book::schema;
+use crate::book::{schema, BookOriginFilter};
 use chrono::{NaiveDate, NaiveDateTime};
-use diesel::associations::HasTable;
-use diesel::{Associations, Connection, ExpressionMethods, Identifiable, Insertable, PgConnection, QueryDsl, Queryable, RunQueryDsl, Selectable, SelectableHelper};
+use diesel::{Associations, ExpressionMethods, Identifiable, Insertable, PgConnection, QueryDsl, Queryable, RunQueryDsl, Selectable, SelectableHelper};
 
 #[derive(Queryable, Selectable, Identifiable, Debug, PartialEq)]
 #[diesel(table_name = schema::publisher)]
@@ -14,7 +13,7 @@ pub struct PublisherEntity {
 /// 출판사 API 검색시 사용할 키워드
 #[derive(Queryable, Selectable, Identifiable, Associations, Debug, PartialEq)]
 #[diesel(table_name = schema::publisher_keyword)]
-#[diesel(primary_key(publisher_id, keyword))]
+#[diesel(primary_key(publisher_id, site, keyword))]
 #[diesel(belongs_to(PublisherEntity, foreign_key = publisher_id))]
 pub struct PublisherKeywordEntity {
     pub publisher_id: i64,
@@ -23,10 +22,14 @@ pub struct PublisherKeywordEntity {
 }
 
 pub fn find_publisher_all(conn: &mut PgConnection) -> Vec<(PublisherEntity, Option<PublisherKeywordEntity>)> {
-    schema::publisher::dsl::publisher::table()
-        .left_join(schema::publisher_keyword::dsl::publisher_keyword::table())
-        .select((PublisherEntity::as_select(), Option::<PublisherKeywordEntity>::as_select()))
-        .load::<(PublisherEntity, Option<PublisherKeywordEntity>)>(conn)
+    schema::publisher::table
+        .left_join(schema::publisher_keyword::table)
+        .select((
+            PublisherEntity::as_select(),
+            Option::<PublisherKeywordEntity>::as_select()
+        ))
+        .into_boxed()
+        .load(conn)
         .unwrap()
 }
 
@@ -69,7 +72,7 @@ pub struct NewBookEntity<'a> {
 }
 
 pub fn find_book_by_isbn(conn: &mut PgConnection, isbn: &Vec<&str>) -> Vec<BookEntity> {
-    schema::book::dsl::book
+    schema::book::table
         .filter(schema::book::isbn.eq_any(isbn))
         .select(BookEntity::as_select())
         .load(conn)
@@ -81,4 +84,45 @@ pub fn insert_books(conn: &mut PgConnection, books: Vec<NewBookEntity>) -> Vec<B
         .values(books)
         .get_results(conn)
         .expect("Error inserting new books.")
+}
+
+#[derive(Queryable, Selectable, Identifiable, Debug, PartialEq)]
+#[diesel(table_name = schema::book_origin_filter)]
+pub struct BookOriginFilterEntity {
+    pub id: i64,
+    pub name: String,
+    pub site: String,
+    pub is_root: bool,
+    pub operator_type: Option<String>,
+    pub property_name: Option<String>,
+    pub regex: Option<String>,
+    pub parent_id: Option<i64>,
+}
+
+impl BookOriginFilterEntity {
+
+    pub fn to_domain(self) -> (BookOriginFilter, Option<u64>) {
+        let filter = BookOriginFilter {
+            id: self.id as u64,
+            name: self.name.clone(),
+            site: self.site.clone(),
+            is_root: self.is_root.clone(),
+            operator: if let Some(o) = self.operator_type {
+                book::Operator::from_str(&o)
+            } else {
+                None
+            },
+            property_name: self.property_name.clone(),
+            regex: self.regex.clone(),
+            children: Vec::new(),
+        };
+        (filter, self.parent_id.map(|p| p as u64))
+    }
+}
+
+pub fn find_book_origin_filter_all(conn: &mut PgConnection) -> Vec<BookOriginFilterEntity> {
+    schema::book_origin_filter::table
+        .select(BookOriginFilterEntity::as_select())
+        .load::<BookOriginFilterEntity>(conn)
+        .unwrap()
 }

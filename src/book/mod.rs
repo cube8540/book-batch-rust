@@ -1,4 +1,6 @@
+use std::cell::RefCell;
 use std::collections::HashMap;
+use std::rc::Rc;
 
 mod entity;
 mod schema;
@@ -72,4 +74,47 @@ pub trait BookRepository {
     fn get_by_isbn(&self, isbn: &Vec<&str>) -> Vec<Book>;
 
     fn new_books(&self, books: &Vec<Book>) -> Vec<Book>;
+}
+
+#[derive(Debug)]
+pub enum Operator {
+    AND,
+    OR,
+    NOR,
+    NAND
+}
+
+impl Operator {
+    pub fn from_str(s: &str) -> Option<Operator> {
+        match s {
+            "AND" => Some(Operator::AND),
+            "OR" => Some(Operator::OR),
+            "NOR" => Some(Operator::NOR),
+            "NAND" => Some(Operator::NAND),
+            _ => None
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct BookOriginFilter {
+    pub id: u64,
+    pub name: String,
+    pub site: Site,
+    pub is_root: bool,
+    pub operator: Option<Operator>,
+    pub property_name: Option<String>,
+    pub regex: Option<String>,
+    pub children: Vec<Rc<RefCell<BookOriginFilter>>>,
+}
+
+impl BookOriginFilter {
+    
+    pub fn add_child(&mut self, child: Rc<RefCell<BookOriginFilter>>) {
+        self.children.push(child);
+    }
+}
+
+pub trait BookOriginFilterRepository {
+    fn get_root_filters(&self) -> Vec<Rc<RefCell<BookOriginFilter>>>;
 }

@@ -1,10 +1,16 @@
-use crate::book::{entity, Book, BookRepository, Publisher, PublisherRepository};
-use diesel::PgConnection;
-use std::collections::HashMap;
+use crate::book::{entity, Book, BookOriginFilter, BookOriginFilterRepository, BookRepository, Publisher, PublisherRepository};
 use chrono::Utc;
+use diesel::PgConnection;
+use std::cell::RefCell;
+use std::collections::HashMap;
+use std::rc::Rc;
 
 type DbPool = r2d2::Pool<diesel::r2d2::ConnectionManager<PgConnection>>;
 type DbConnection = r2d2::PooledConnection<diesel::r2d2::ConnectionManager<PgConnection>>;
+
+fn get_connection(pool: &DbPool) -> DbConnection {
+    pool.get().expect("Failed to get db connection from pool")
+}
 
 pub struct DieselPublisherRepository {
     pool: DbPool
@@ -20,9 +26,7 @@ impl DieselPublisherRepository {
 
 impl PublisherRepository for DieselPublisherRepository {
     fn get_all(&self) -> Vec<Publisher> {
-        let mut conn = self.pool
-            .get()
-            .expect("Failed to get db connection from pool");
+        let mut conn = get_connection(&self.pool);
         let result_set = entity::find_publisher_all(&mut conn);
 
         let mut map = HashMap::<u64, Publisher>::new();
@@ -56,9 +60,7 @@ impl DieselBookRepository {
 
 impl BookRepository for DieselBookRepository {
     fn get_by_isbn(&self, isbn: &Vec<&str>) -> Vec<Book> {
-        let mut conn = self.pool
-            .get()
-            .expect("Failed to get db connection from pool");
+        let mut conn = get_connection(&self.pool);
         let result_set = entity::find_book_by_isbn(&mut conn, isbn);
         result_set.iter()
             .map(|book| book.to_domain())
@@ -66,10 +68,7 @@ impl BookRepository for DieselBookRepository {
     }
 
     fn new_books(&self, books: &Vec<Book>) -> Vec<Book> {
-        let mut conn = self.pool
-            .get()
-            .expect("Failed to get db connection from pool");
-
+        let mut conn = get_connection(&self.pool);
         let new_entities: Vec<entity::NewBookEntity> = books
             .iter()
             .map(|book| entity::NewBookEntity {
@@ -85,5 +84,52 @@ impl BookRepository for DieselBookRepository {
         let results = entity::insert_books(&mut conn, new_entities);
         results.into_iter().map(|result| result.to_domain()).collect()
     }
+}
 
+type ParentId = u64;
+type BookOriginFilterRef = Rc<RefCell<BookOriginFilter>>;
+
+pub struct DieselBookOriginFilterRepository {
+    pool: DbPool
+}
+
+impl DieselBookOriginFilterRepository {
+    pub fn new(pool: DbPool) -> Self {
+        Self {
+            pool
+        }
+    }
+
+    fn get_all(&self) -> Vec<(BookOriginFilterRef, Option<ParentId>)> {
+        let filter_map = RefCell::new(HashMap::new());
+        let mut ref_mut = filter_map.borrow_mut();
+
+        let mut conn = get_connection(&self.pool);
+        entity::find_book_origin_filter_all(&mut conn).into_iter()
+            .for_each(|e| {
+                let (filter, parent_id) = e.to_domain();
+                ref_mut.insert(filter.id, (Rc::new(RefCell::new(filter)), parent_id));
+            });
+
+        let items: Vec<(BookOriginFilterRef, Option<ParentId>)> = ref_mut.iter_mut()
+            .map(|(_, (filter, parent_id))| (filter.clone(), *parent_id))
+            .collect();
+
+        for (filter, parent_id) in items.iter() {
+            if let Some((parent, _)) = parent_id.and_then(|pid| ref_mut.get(&pid)) {
+                parent.borrow_mut().add_child(filter.clone());
+            }
+        }
+        
+        items
+    }
+}
+
+impl BookOriginFilterRepository for DieselBookOriginFilterRepository {
+    fn get_root_filters(&self) -> Vec<Rc<RefCell<BookOriginFilter>>> {
+        self.get_all().into_iter()
+            .map(|(filter, _)| filter)
+            .filter(|b| b.borrow().is_root)
+            .collect()
+    }
 }
