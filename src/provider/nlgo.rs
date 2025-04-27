@@ -158,7 +158,7 @@ impl provider::Client for Client {
     }
 }
 
-fn convert_doc_to_book(doc: &Doc) -> Box<book::Book> {
+fn convert_doc_to_book(doc: &Doc) -> book::Book {
     let scheduled_pub_date = if doc.publish_predate != "" {
         chrono::NaiveDate::parse_from_str(&doc.publish_predate, "%Y%m%d").ok()
     } else {
@@ -169,7 +169,7 @@ fn convert_doc_to_book(doc: &Doc) -> Box<book::Book> {
     } else {
         None
     };
-    Box::new(book::Book {
+    book::Book {
         id: 0,
         isbn: doc.ea_isbn.clone(),
         publisher_id: 0,
@@ -177,5 +177,5 @@ fn convert_doc_to_book(doc: &Doc) -> Box<book::Book> {
         scheduled_pub_date,
         actual_pub_date,
         origin_data: HashMap::from([(SITE.to_string(), doc.to_map())]),
-    })
+    }
 }

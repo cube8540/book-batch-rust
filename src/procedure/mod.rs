@@ -6,7 +6,7 @@ use crate::book::BookOriginFilterRepository;
 use book::Book;
 
 pub trait Reader {
-    fn get_books(&self, publisher: &book::Publisher) -> Vec<Box<Book>> {
+    fn get_books(&self, publisher: &book::Publisher) -> Vec<Book> {
         publisher.keywords(self.site()).iter()
             .flat_map(|keyword| {
                 let mut books = self.read(keyword);
@@ -16,13 +16,13 @@ pub trait Reader {
             .collect()
     }
     
-    fn read(&self, keyword: &str) -> Vec<Box<Book>>;
+    fn read(&self, keyword: &str) -> Vec<Book>;
     
     fn site(&self) -> book::Site;
 }
 
 pub trait Filter {
-    fn do_filter(&self, books: Vec<Box<Book>>) -> Vec<Box<Book>>;
+    fn do_filter(&self, books: Vec<Book>) -> Vec<Book>;
 }
 
 pub struct OriginDataFilter {
@@ -40,7 +40,7 @@ impl OriginDataFilter {
 }
 
 impl Filter for OriginDataFilter {
-    fn do_filter(&self, books: Vec<Box<Book>>) -> Vec<Box<Book>> {
+    fn do_filter(&self, books: Vec<Book>) -> Vec<Book> {
         let filter_map = self.repository.get_root_filters();
 
         match filter_map.get(&self.site) {
@@ -57,5 +57,5 @@ impl Filter for OriginDataFilter {
 }
 
 pub trait Writer {
-    fn write(&self, books: &Vec<Box<Book>>); // TODO 에러 처리
+    fn write(&self, books: &Vec<Book>); // TODO 에러 처리
 }

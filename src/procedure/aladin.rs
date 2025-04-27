@@ -21,7 +21,7 @@ impl AladinReader {
 
 impl Reader for AladinReader {
     
-    fn read(&self, keyword: &str) -> Vec<Box<Book>> {
+    fn read(&self, keyword: &str) -> Vec<Book> {
         let mut v = Vec::new();
 
         let mut total_fetched = 0;
@@ -36,9 +36,9 @@ impl Reader for AladinReader {
             };
             let current_response = self.client.get_books(&request).unwrap(); // TODO: 에러 처리 필요
             if !current_response.books.is_empty() {
-                current_response.books.iter().for_each(|book| v.push(book.clone()));
-                page += 1;
                 total_fetched += current_response.books.len();
+                current_response.books.into_iter().for_each(|b| v.push(b));
+                page += 1;
                 if total_fetched >= MAX_RESULTS {
                     break v;
                 }

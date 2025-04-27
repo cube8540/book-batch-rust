@@ -1,4 +1,4 @@
-use crate::book::{Book, Publisher, Site};
+use crate::book::{Book, Site};
 use crate::procedure::Reader;
 use crate::provider;
 use crate::provider::Client;
@@ -23,7 +23,7 @@ impl NlgoReader {
 
 impl Reader for NlgoReader {
 
-    fn read(&self, keyword: &str) -> Vec<Box<Book>> {
+    fn read(&self, keyword: &str) -> Vec<Book> {
         let mut v = Vec::new();
         let mut page = 1;
         loop {
@@ -36,7 +36,7 @@ impl Reader for NlgoReader {
             };
             let response = self.client.get_books(&request).unwrap(); // TODO 에러 처리 해야함
             if !response.books.is_empty() {
-                response.books.iter().for_each(|book| v.push(book.clone()));
+                response.books.into_iter().for_each(|b| v.push(b));
                 page += 1;
             } else {
                 break v;

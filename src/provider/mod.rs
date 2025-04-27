@@ -23,7 +23,7 @@ pub struct Response {
     pub total_count: i32,
     pub page_no: i32,
     pub site: book::Site,
-    pub books: Vec<Box<book::Book>>,
+    pub books: Vec<book::Book>,
 }
 
 pub trait Client {

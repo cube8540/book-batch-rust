@@ -173,8 +173,8 @@ impl provider::Client for Client {
     }
 }
 
-fn convert_item_to_book(item: &BookItem) -> Box<book::Book> {
-    Box::new(book::Book {
+fn convert_item_to_book(item: &BookItem) -> book::Book {
+    book::Book {
         id: 0,
         isbn: item.isbn13.clone(),
         publisher_id: 0,
@@ -182,5 +182,5 @@ fn convert_item_to_book(item: &BookItem) -> Box<book::Book> {
         scheduled_pub_date: None,
         actual_pub_date: chrono::NaiveDate::parse_from_str(item.pub_date.as_str(), "%Y-%m-%d").ok(),
         origin_data: HashMap::from([(SITE.to_string(), item.to_map())]),
-    })
+    }
 }
