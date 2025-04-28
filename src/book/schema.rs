@@ -10,6 +10,7 @@ diesel::table! {
         scheduled_pub_date -> Nullable<Date>,
         actual_pub_date -> Nullable<Date>,
         registered_at -> Timestamp,
+        modified_at -> Nullable<Timestamp>,
     }
 }
 

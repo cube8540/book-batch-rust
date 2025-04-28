@@ -1,5 +1,4 @@
 use crate::book::{entity, Book, BookOriginFilter, BookOriginFilterRepository, BookRepository, Publisher, PublisherRepository, Site};
-use chrono::Utc;
 use diesel::PgConnection;
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -77,7 +76,7 @@ impl BookRepository for DieselBookRepository {
                 publisher_id: book.publisher_id as i64,
                 scheduled_pub_date: book.scheduled_pub_date,
                 actual_pub_date: book.actual_pub_date,
-                registered_at: Utc::now().naive_utc(),
+                registered_at: chrono::Local::now().naive_local(),
             })
             .collect();
 
@@ -97,6 +96,7 @@ impl BookRepository for DieselBookRepository {
                     title: &book.title,
                     scheduled_pub_date: book.scheduled_pub_date.as_ref(),
                     actual_pub_date: book.actual_pub_date.as_ref(),
+                    modified_at: &chrono::Local::now().naive_local()
                 };
                 entity::update_book(&mut conn, &isbn, form);
             });

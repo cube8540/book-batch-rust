@@ -44,6 +44,7 @@ pub struct BookEntity {
     pub scheduled_pub_date: Option<NaiveDate>,
     pub actual_pub_date: Option<NaiveDate>,
     pub registered_at: NaiveDateTime,
+    pub modified_at: Option<NaiveDateTime>,
 }
 
 impl BookEntity {
@@ -77,6 +78,7 @@ pub struct BookForm<'a> {
     pub title: &'a str,
     pub scheduled_pub_date: Option<&'a NaiveDate>,
     pub actual_pub_date: Option<&'a NaiveDate>,
+    pub modified_at: &'a NaiveDateTime,
 }
 
 pub fn find_book_by_isbn(conn: &mut PgConnection, isbn: &Vec<&str>) -> Vec<BookEntity> {
