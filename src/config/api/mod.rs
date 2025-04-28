@@ -1,7 +1,7 @@
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
-pub struct API {
+pub struct Config {
     nlgo: Credentials,
     aladin: Credentials
 }
@@ -12,7 +12,7 @@ pub struct Credentials {
     secret: Option<String>
 }
 
-impl API {
+impl Config {
     pub fn nlgo(&self) -> &Credentials {
         &self.nlgo
     }
