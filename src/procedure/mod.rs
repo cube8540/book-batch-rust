@@ -31,6 +31,43 @@ pub trait Filter {
     fn do_filter(&self, books: Vec<Book>) -> Vec<Book>;
 }
 
+pub struct FilterChain {
+    filters: Vec<Box<dyn Filter>>,
+}
+
+impl FilterChain {
+    pub fn new() -> Self {
+        Self {
+            filters: vec![]
+        }
+    }
+
+    pub fn add_filter(mut self, filter: Box<dyn Filter>) -> Self {
+        self.filters.push(filter);
+        self
+    }
+}
+
+impl Filter for FilterChain {
+    fn do_filter(&self, books: Vec<Book>) -> Vec<Book> {
+        self.filters.iter().fold(books, |books, filter| filter.do_filter(books))
+    }
+}
+
+pub struct EmptyIsbnFilter;
+
+impl EmptyIsbnFilter {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
+impl Filter for EmptyIsbnFilter {
+    fn do_filter(&self, books: Vec<Book>) -> Vec<Book> {
+        books.into_iter().filter(|b| !b.isbn.is_empty()).collect()
+    }
+}
+
 pub struct OriginDataFilter<R: BookOriginFilterRepository> {
     repository: R,
     site: Site,

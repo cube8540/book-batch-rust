@@ -85,6 +85,12 @@ pub struct BookItem {
     /// 출판사
     #[serde(rename = "publisher")]
     pub publisher: String,
+    /// 카테고리 아이디
+    #[serde(rename = "categoryId")]
+    pub category_id: i32,
+    /// 재고상태
+    #[serde(rename = "stockStatus")]
+    pub stock_status: String,
 }
 
 impl BookItem {
@@ -101,6 +107,8 @@ impl BookItem {
             ("price_sales".to_string(), self.price_sales.to_string()),
             ("price_standard".to_string(), self.price_standard.to_string()),
             ("publisher".to_string(), self.publisher.clone()),
+            ("category_id".to_string(), self.category_id.to_string()),
+            ("stock_status".to_string(), self.stock_status.clone()),
         ])
     }
 }
