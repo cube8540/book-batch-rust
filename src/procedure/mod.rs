@@ -1,10 +1,10 @@
 pub mod nlgo;
 pub mod aladin;
 
-use std::collections::HashMap;
 use crate::book;
 use crate::book::{BookOriginFilterRepository, BookRepository};
 use book::Book;
+use std::collections::HashMap;
 
 pub trait Reader {
     fn get_books(&self, publisher: &book::Publisher) -> Vec<Book> {

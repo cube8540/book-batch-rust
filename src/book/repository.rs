@@ -93,7 +93,11 @@ impl BookRepository for DieselBookRepository {
 
         map.iter()
             .for_each(|(isbn, book)| {
-                let form = entity::BookForm::new(book);
+                let form = entity::BookForm {
+                    title: &book.isbn,
+                    scheduled_pub_date: book.scheduled_pub_date.as_ref(),
+                    actual_pub_date: book.actual_pub_date.as_ref(),
+                };
                 entity::update_book(&mut conn, &isbn, form);
             });
 
