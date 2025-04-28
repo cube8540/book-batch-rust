@@ -1,5 +1,5 @@
-use crate::book::{Book, Site};
-use crate::procedure::Reader;
+use crate::book::Book;
+use crate::procedure::{read_by_publisher, Parameter, Reader};
 use crate::provider;
 use crate::provider::api::Client;
 use chrono::NaiveDate;
@@ -19,9 +19,6 @@ impl NlgoReader {
     ) -> Self {
         Self { client, from, to }
     }
-}
-
-impl Reader for NlgoReader {
 
     fn read(&self, keyword: &str) -> Vec<Book> {
         let mut v = Vec::new();
@@ -43,8 +40,15 @@ impl Reader for NlgoReader {
             }
         }
     }
+}
 
-    fn site(&self) -> Site {
-        provider::api::nlgo::SITE.to_string()
+impl Reader for NlgoReader {
+    fn get_books(&self, parameter: &Parameter) -> Vec<Book> {
+        let publisher = parameter.publisher.as_ref().unwrap();
+        read_by_publisher(
+            provider::api::nlgo::SITE.to_owned(),
+            publisher,
+            |keyword| self.read(keyword)
+        )
     }
 }

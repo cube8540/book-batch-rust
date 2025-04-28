@@ -2,24 +2,29 @@ pub mod nlgo;
 pub mod aladin;
 
 use crate::book;
-use crate::book::{BookOriginFilterRepository, BookRepository};
+use crate::book::{BookOriginFilterRepository, BookRepository, Publisher, Site};
 use book::Book;
 use std::collections::HashMap;
 
+pub struct Parameter {
+    pub isbn: Option<String>,
+    pub publisher: Option<Publisher>,
+}
+
 pub trait Reader {
-    fn get_books(&self, publisher: &book::Publisher) -> Vec<Book> {
-        publisher.keywords(self.site()).iter()
-            .flat_map(|keyword| {
-                let mut books = self.read(keyword);
-                books.iter_mut().for_each(|b| b.publisher_id = publisher.id());
-                books
-            })
-            .collect()
-    }
-    
-    fn read(&self, keyword: &str) -> Vec<Book>;
-    
-    fn site(&self) -> book::Site;
+    fn get_books(&self, parameter: &Parameter) -> Vec<Book>;
+}
+
+pub fn read_by_publisher<F>(site: Site, publisher: &Publisher, f: F) -> Vec<Book>
+where
+    F: Fn(&str) -> Vec<Book> {
+    publisher.keywords(site).iter()
+        .flat_map(|keyword| {
+            let mut books = f(keyword);
+            books.iter_mut().for_each(|b| b.publisher_id = publisher.id());
+            books
+        })
+        .collect()
 }
 
 pub trait Filter {
@@ -65,6 +70,15 @@ pub struct OnlyInsertWriter<R: BookRepository> {
     repository: R
 }
 
+impl <R: BookRepository> OnlyInsertWriter<R> {
+    
+    pub fn new(repository: R) -> Self {
+        Self {
+            repository
+        }
+    }
+}
+
 impl <R: BookRepository> Writer for OnlyInsertWriter<R> {
     fn write(&self, books: Vec<Book>) -> Vec<Book> {
         let exists = get_target_books(&self.repository, &books);
@@ -79,6 +93,15 @@ impl <R: BookRepository> Writer for OnlyInsertWriter<R> {
 
 pub struct UpsertWriter<R: BookRepository> {
     repository: R
+}
+
+impl <R: BookRepository> UpsertWriter<R> {
+    
+    pub fn new(repository: R) -> Self {
+        Self {
+            repository
+        }
+    }
 }
 
 impl <R: BookRepository> Writer for UpsertWriter<R> {

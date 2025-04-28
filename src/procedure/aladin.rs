@@ -1,5 +1,5 @@
-use crate::book::{Book, Site};
-use crate::procedure::Reader;
+use crate::book::Book;
+use crate::procedure::{read_by_publisher, Parameter, Reader};
 use crate::provider;
 use crate::provider::api::Client;
 
@@ -17,13 +17,8 @@ impl AladinReader {
         Self { client }
     }
 
-}
-
-impl Reader for AladinReader {
-    
     fn read(&self, keyword: &str) -> Vec<Book> {
         let mut v = Vec::new();
-
         let mut total_fetched = 0;
         let mut page = 1;
         loop {
@@ -48,7 +43,15 @@ impl Reader for AladinReader {
         }
     }
 
-    fn site(&self) -> Site {
-        provider::api::aladin::SITE.to_string()
+}
+
+impl Reader for AladinReader {
+    fn get_books(&self, parameter: &Parameter) -> Vec<Book> {
+        let publisher = parameter.publisher.as_ref().unwrap();
+        read_by_publisher(
+            provider::api::aladin::SITE.to_owned(),
+            publisher,
+            |keyword| self.read(keyword)
+        )
     }
 }

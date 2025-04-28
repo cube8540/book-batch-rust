@@ -8,7 +8,7 @@ mod schema;
 pub mod repository;
 
 /// 출판사 도메인
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Publisher {
     id: u64,
     name: String,
