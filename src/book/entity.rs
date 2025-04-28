@@ -72,7 +72,7 @@ pub struct NewBookEntity<'a> {
 }
 
 #[derive(AsChangeset)]
-#[derive(table_name = schema::book)]
+#[diesel(table_name = schema::book)]
 pub struct BookForm<'a> {
     pub title: &'a str,
     pub scheduled_pub_date: &'a Option<NaiveDate>,
