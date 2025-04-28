@@ -1,5 +1,6 @@
 mod database;
 mod api;
+pub mod log;
 
 use crate::config::api::API;
 use crate::config::database::Database;
@@ -14,6 +15,7 @@ use r2d2::Pool;
 pub struct AppConfig {
     db: Database,
     api: API,
+    logger: log::Config,
 }
 
 impl AppConfig {
@@ -23,6 +25,10 @@ impl AppConfig {
 
     pub fn api(&self) -> &API {
         &self.api
+    }
+
+    pub fn logger(&self) -> &log::Config {
+        &self.logger
     }
 }
 
