@@ -1,4 +1,4 @@
-use crate::provider::error::ClientError;
+use crate::provider::api::{ClientError, Request};
 use crate::{book, provider};
 use serde::Deserialize;
 use serde_with::serde_as;
@@ -104,7 +104,7 @@ impl Client {
         }
     }
 
-    fn build_search_url(&self, request: &provider::Request) -> Result<reqwest::Url, ClientError> {
+    fn build_search_url(&self, request: &Request) -> Result<reqwest::Url, ClientError> {
         let from = if let Some(date) = request.start_date {
             date.format("%Y%m%d").to_string()
         } else {
@@ -136,8 +136,8 @@ impl Client {
     }
 }
 
-impl provider::Client for Client {
-    fn get_books(&self, request: &provider::Request) -> Result<provider::Response, ClientError> {
+impl provider::api::Client for Client {
+    fn get_books(&self, request: &Request) -> Result<provider::api::Response, ClientError> {
         let url = self.build_search_url(&request)?;
         let response = reqwest::blocking::get(url)
             .map_err(|e| ClientError::RequestFailed(e.to_string()))?;
@@ -149,7 +149,7 @@ impl provider::Client for Client {
         let books = parsed_response.docs.iter()
             .map(|doc| convert_doc_to_book(doc));
 
-        Ok(provider::Response {
+        Ok(provider::api::Response {
             total_count: parsed_response.total_count,
             page_no: parsed_response.page_no,
             site: SITE.to_string(),

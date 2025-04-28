@@ -1,18 +1,18 @@
 use crate::book::{Book, Site};
 use crate::procedure::Reader;
 use crate::provider;
-use crate::provider::Client;
+use crate::provider::api::Client;
 
 const PAGE_SIZE: i32 = 50;
 const MAX_RESULTS: usize = 200; // 알라딘 API 최대 조회 제한
 
 pub struct AladinReader {
-    client: provider::aladin::Client,
+    client: provider::api::aladin::Client,
 }
 
 impl AladinReader {
     pub fn new(
-        client: provider::aladin::Client,
+        client: provider::api::aladin::Client,
     ) -> Self {
         Self { client }
     }
@@ -27,7 +27,7 @@ impl Reader for AladinReader {
         let mut total_fetched = 0;
         let mut page = 1;
         loop {
-            let request = provider::Request {
+            let request = provider::api::Request {
                 page,
                 size: PAGE_SIZE,
                 query: keyword.to_string(),
@@ -49,6 +49,6 @@ impl Reader for AladinReader {
     }
 
     fn site(&self) -> Site {
-        provider::aladin::SITE.to_string()
+        provider::api::aladin::SITE.to_string()
     }
 }

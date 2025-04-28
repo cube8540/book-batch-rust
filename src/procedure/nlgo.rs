@@ -1,11 +1,11 @@
 use crate::book::{Book, Site};
 use crate::procedure::Reader;
 use crate::provider;
-use crate::provider::Client;
+use crate::provider::api::Client;
 use chrono::NaiveDate;
 
 pub struct NlgoReader {
-    client: provider::nlgo::Client,
+    client: provider::api::nlgo::Client,
 
     from: NaiveDate,
     to: NaiveDate,
@@ -13,7 +13,7 @@ pub struct NlgoReader {
 
 impl NlgoReader {
     pub fn new(
-        client: provider::nlgo::Client,
+        client: provider::api::nlgo::Client,
         from: NaiveDate,
         to: NaiveDate,
     ) -> Self {
@@ -27,7 +27,7 @@ impl Reader for NlgoReader {
         let mut v = Vec::new();
         let mut page = 1;
         loop {
-            let request = provider::Request {
+            let request = provider::api::Request {
                 page,
                 size: 500,
                 query: keyword.to_string(),
@@ -45,6 +45,6 @@ impl Reader for NlgoReader {
     }
 
     fn site(&self) -> Site {
-        provider::nlgo::SITE.to_string()
+        provider::api::nlgo::SITE.to_string()
     }
 }

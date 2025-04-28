@@ -1,5 +1,4 @@
-use crate::provider::error::ClientError;
-use crate::provider::Request;
+use crate::provider::api::{ClientError, Request};
 use crate::{book, provider};
 use reqwest::blocking;
 use serde::Deserialize;
@@ -139,8 +138,8 @@ impl Client {
     }
 }
 
-impl provider::Client for Client {
-    fn get_books(&self, request: &Request) -> Result<provider::Response, ClientError> {
+impl provider::api::Client for Client {
+    fn get_books(&self, request: &Request) -> Result<provider::api::Response, ClientError> {
         let client = blocking::Client::builder()
             .timeout(std::time::Duration::from_secs(DEFAULT_TIMEOUT_SECONDS))
             .build()
@@ -164,7 +163,7 @@ impl provider::Client for Client {
         let books = parsed_response.items.iter()
             .map(|item| convert_item_to_book(item));
 
-        Ok(provider::Response{
+        Ok(provider::api::Response{
             total_count: parsed_response.total_results,
             page_no: parsed_response.start_index,
             site: SITE.to_string(),
