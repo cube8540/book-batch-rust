@@ -73,18 +73,18 @@ pub struct NewBookEntity<'a> {
 
 #[derive(AsChangeset)]
 #[diesel(table_name = schema::book)]
-pub struct BookForm<'a> {
-    pub title: &'a str,
-    pub scheduled_pub_date: &'a Option<NaiveDate>,
-    pub actual_pub_date: &'a Option<NaiveDate>
+pub struct BookForm {
+    pub title: String,
+    pub scheduled_pub_date: Option<NaiveDate>,
+    pub actual_pub_date: Option<NaiveDate>,
 }
 
 impl BookForm {
     pub fn new(book: &book::Book) -> Self {
         Self {
-            title: &book.title,
-            scheduled_pub_date: &book.scheduled_pub_date,
-            actual_pub_date: &book.actual_pub_date
+            title: book.title.clone(),
+            scheduled_pub_date: book.scheduled_pub_date,
+            actual_pub_date: book.actual_pub_date
         }
     }
 }

@@ -106,9 +106,9 @@ pub trait PublisherRepository {
 pub trait BookRepository {
     fn get_by_isbn(&self, isbn: &Vec<&str>) -> Vec<Book>;
 
-    fn new_books(&self, books: &Vec<Book>) -> Vec<Book>;
+    fn new_books(&self, books: Vec<Book>) -> Vec<Book>;
 
-    fn update_books(&self, books: &Vec<Book>) -> Vec<Book>;
+    fn update_books(&self, books: Vec<Book>) -> Vec<Book>;
 }
 
 #[derive(Debug)]

@@ -61,35 +61,35 @@ pub trait Writer {
     fn write(&self, books: Vec<Book>) -> Vec<Book>; // TODO 에러 처리
 }
 
-pub struct OnlyInsertWriter {
-    repository: Box<dyn BookRepository>
+pub struct OnlyInsertWriter<R: BookRepository> {
+    repository: R
 }
 
-impl Writer for OnlyInsertWriter {
-    fn write(&self, books: Vec<Book>) {
+impl <R: BookRepository> Writer for OnlyInsertWriter<R> {
+    fn write(&self, books: Vec<Book>) -> Vec<Book> {
         let exists = get_target_books(&self.repository, &books);
 
         let new_books = books.into_iter()
             .filter(|b| !exists.contains_key(&b.isbn))
             .collect::<Vec<Book>>();
 
-        self.repository.new_books(&new_books);
+        self.repository.new_books(new_books)
     }
 }
 
-pub struct UpsertWriter {
-    repository: Box<dyn BookRepository>
+pub struct UpsertWriter<R: BookRepository> {
+    repository: R
 }
 
-impl Writer for UpsertWriter {
+impl <R: BookRepository> Writer for UpsertWriter<R> {
     fn write(&self, books: Vec<Book>) -> Vec<Book> {
-        let exists = get_target_books(&self.repository, &books);
+        let mut exists = get_target_books(&self.repository, &books);
 
         let mut new_books = vec![];
         let mut update_books = vec![];
 
         books.into_iter().for_each(|book| {
-            if let Some(ext) = exists[&book.isbn] {
+            if let Some(ext) = exists.remove(&book.isbn) {
                 update_books.push(ext.merge(book));
             } else {
                 new_books.push(book);
@@ -97,14 +97,14 @@ impl Writer for UpsertWriter {
         });
 
         let mut result = vec![];
-        self.repository.new_books(&new_books).into_iter().for_each(|b| result.push(b));
-        self.repository.update_books(&update_books).into_iter().for_each(|b| result.push(b));
+        self.repository.new_books(new_books).into_iter().for_each(|b| result.push(b));
+        self.repository.update_books(update_books).into_iter().for_each(|b| result.push(b));
         result
     }
 }
 
-fn get_target_books<R: BookRepository>(repository: R, target: &Vec<Book>) -> HashMap<String, Book> {
-    let isbn = target.iter().map(|b| &b.isbn).collect::<Vec<&str>>();
+fn get_target_books<R: BookRepository>(repository: &R, target: &Vec<Book>) -> HashMap<String, Book> {
+    let isbn = target.iter().map(|b| b.isbn.as_str()).collect();
 
     repository.get_by_isbn(&isbn).into_iter()
         .map(|b| (b.isbn.clone(), b))

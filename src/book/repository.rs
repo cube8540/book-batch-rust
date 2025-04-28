@@ -98,7 +98,7 @@ impl BookRepository for DieselBookRepository {
             });
 
         let k = map.keys()
-            .map(|k, v| k.as_str())
+            .map(|k| k.as_str())
             .collect::<Vec<&str>>();
         self.get_by_isbn(&k)
     }
