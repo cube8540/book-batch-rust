@@ -31,13 +31,13 @@ pub trait Filter {
     fn do_filter(&self, books: Vec<Book>) -> Vec<Book>;
 }
 
-pub struct OriginDataFilter {
-    repository: Box<dyn BookOriginFilterRepository>,
-    site: book::Site,
+pub struct OriginDataFilter<R: BookOriginFilterRepository> {
+    repository: R,
+    site: Site,
 }
 
-impl OriginDataFilter {
-    pub fn new(repository: Box<dyn BookOriginFilterRepository>, site: book::Site) -> Self {
+impl <R: BookOriginFilterRepository> OriginDataFilter<R> {
+    pub fn new(repository: R, site: Site) -> Self {
         Self {
             repository,
             site,
@@ -45,7 +45,7 @@ impl OriginDataFilter {
     }
 }
 
-impl Filter for OriginDataFilter {
+impl<R: BookOriginFilterRepository> Filter for OriginDataFilter<R> {
     fn do_filter(&self, books: Vec<Book>) -> Vec<Book> {
         let filter_map = self.repository.get_root_filters();
 
@@ -71,7 +71,7 @@ pub struct OnlyInsertWriter<R: BookRepository> {
 }
 
 impl <R: BookRepository> OnlyInsertWriter<R> {
-    
+
     pub fn new(repository: R) -> Self {
         Self {
             repository
@@ -96,7 +96,7 @@ pub struct UpsertWriter<R: BookRepository> {
 }
 
 impl <R: BookRepository> UpsertWriter<R> {
-    
+
     pub fn new(repository: R) -> Self {
         Self {
             repository
