@@ -1,8 +1,9 @@
 pub mod nlgo;
 pub mod aladin;
 
+use std::collections::HashMap;
 use crate::book;
-use crate::book::BookOriginFilterRepository;
+use crate::book::{BookOriginFilterRepository, BookRepository};
 use book::Book;
 
 pub trait Reader {
@@ -57,5 +58,55 @@ impl Filter for OriginDataFilter {
 }
 
 pub trait Writer {
-    fn write(&self, books: &Vec<Book>); // TODO 에러 처리
+    fn write(&self, books: Vec<Book>) -> Vec<Book>; // TODO 에러 처리
+}
+
+pub struct OnlyInsertWriter {
+    repository: Box<dyn BookRepository>
+}
+
+impl Writer for OnlyInsertWriter {
+    fn write(&self, books: Vec<Book>) {
+        let exists = get_target_books(&self.repository, &books);
+
+        let new_books = books.into_iter()
+            .filter(|b| !exists.contains_key(&b.isbn))
+            .collect::<Vec<Book>>();
+
+        self.repository.new_books(&new_books);
+    }
+}
+
+pub struct UpsertWriter {
+    repository: Box<dyn BookRepository>
+}
+
+impl Writer for UpsertWriter {
+    fn write(&self, books: Vec<Book>) -> Vec<Book> {
+        let exists = get_target_books(&self.repository, &books);
+
+        let mut new_books = vec![];
+        let mut update_books = vec![];
+
+        books.into_iter().for_each(|book| {
+            if let Some(ext) = exists[&book.isbn] {
+                update_books.push(ext.merge(book));
+            } else {
+                new_books.push(book);
+            }
+        });
+
+        let mut result = vec![];
+        self.repository.new_books(&new_books).into_iter().for_each(|b| result.push(b));
+        self.repository.update_books(&update_books).into_iter().for_each(|b| result.push(b));
+        result
+    }
+}
+
+fn get_target_books<R: BookRepository>(repository: R, target: &Vec<Book>) -> HashMap<String, Book> {
+    let isbn = target.iter().map(|b| &b.isbn).collect::<Vec<&str>>();
+
+    repository.get_by_isbn(&isbn).into_iter()
+        .map(|b| (b.isbn.clone(), b))
+        .collect::<HashMap<String, Book>>()
 }

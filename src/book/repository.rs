@@ -67,7 +67,7 @@ impl BookRepository for DieselBookRepository {
             .collect()
     }
 
-    fn new_books(&self, books: &Vec<Book>) -> Vec<Book> {
+    fn new_books(&self, books: Vec<Book>) -> Vec<Book> {
         let mut conn = get_connection(&self.pool);
         let new_entities: Vec<entity::NewBookEntity> = books
             .iter()
@@ -83,6 +83,24 @@ impl BookRepository for DieselBookRepository {
 
         let results = entity::insert_books(&mut conn, new_entities);
         results.into_iter().map(|result| result.to_domain()).collect()
+    }
+
+    fn update_books(&self, books: Vec<Book>) -> Vec<Book> {
+        let mut conn = get_connection(&self.pool);
+        let map = books.into_iter()
+            .map(|b| (b.isbn.clone(), b))
+            .collect::<HashMap<String, Book>>();
+
+        map.iter()
+            .for_each(|(isbn, book)| {
+                let form = entity::BookForm::new(book);
+                entity::update_book(&mut conn, &isbn, form);
+            });
+
+        let k = map.keys()
+            .map(|k, v| k.as_str())
+            .collect::<Vec<&str>>();
+        self.get_by_isbn(&k)
     }
 }
 

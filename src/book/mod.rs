@@ -67,6 +67,38 @@ pub struct Book {
     pub origin_data: HashMap<Site, Json>,
 }
 
+impl Book {
+    pub fn merge(self, update: Book) -> Book {
+        let mut merged = Book {
+            id: self.id,
+            isbn: self.isbn.clone(),
+            publisher_id: self.publisher_id,
+            title: self.title.clone(),
+            scheduled_pub_date: self.scheduled_pub_date,
+            actual_pub_date: self.actual_pub_date,
+            origin_data: self.origin_data,
+        };
+
+        if update.title != self.title {
+            merged.title = update.title.clone()
+        }
+
+        if let Some(sch) = update.scheduled_pub_date {
+            if update.scheduled_pub_date != self.scheduled_pub_date {
+                merged.scheduled_pub_date = Some(sch);
+            }
+        }
+
+        if let Some(act) = update.actual_pub_date {
+            if update.actual_pub_date != self.actual_pub_date {
+                merged.actual_pub_date = Some(act)
+            }
+        }
+
+        merged
+    }
+}
+
 pub trait PublisherRepository {
     fn get_all(&self) -> Vec<Publisher>;
 }
@@ -75,6 +107,8 @@ pub trait BookRepository {
     fn get_by_isbn(&self, isbn: &Vec<&str>) -> Vec<Book>;
 
     fn new_books(&self, books: &Vec<Book>) -> Vec<Book>;
+
+    fn update_books(&self, books: &Vec<Book>) -> Vec<Book>;
 }
 
 #[derive(Debug)]

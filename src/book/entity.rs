@@ -1,7 +1,7 @@
 use crate::book;
 use crate::book::{schema, BookOriginFilter};
 use chrono::{NaiveDate, NaiveDateTime};
-use diesel::{Associations, ExpressionMethods, Identifiable, Insertable, PgConnection, QueryDsl, Queryable, RunQueryDsl, Selectable, SelectableHelper};
+use diesel::{AsChangeset, Associations, ExpressionMethods, Identifiable, Insertable, PgConnection, QueryDsl, Queryable, RunQueryDsl, Selectable, SelectableHelper};
 
 #[derive(Queryable, Selectable, Identifiable, Debug, PartialEq)]
 #[diesel(table_name = schema::publisher)]
@@ -71,6 +71,24 @@ pub struct NewBookEntity<'a> {
     pub registered_at: NaiveDateTime,
 }
 
+#[derive(AsChangeset)]
+#[derive(table_name = schema::book)]
+pub struct BookForm<'a> {
+    pub title: &'a str,
+    pub scheduled_pub_date: &'a Option<NaiveDate>,
+    pub actual_pub_date: &'a Option<NaiveDate>
+}
+
+impl BookForm {
+    pub fn new(book: &book::Book) -> Self {
+        Self {
+            title: &book.title,
+            scheduled_pub_date: &book.scheduled_pub_date,
+            actual_pub_date: &book.actual_pub_date
+        }
+    }
+}
+
 pub fn find_book_by_isbn(conn: &mut PgConnection, isbn: &Vec<&str>) -> Vec<BookEntity> {
     schema::book::table
         .filter(schema::book::isbn.eq_any(isbn))
@@ -84,6 +102,14 @@ pub fn insert_books(conn: &mut PgConnection, books: Vec<NewBookEntity>) -> Vec<B
         .values(books)
         .get_results(conn)
         .expect("Error inserting new books.")
+}
+
+pub fn update_book(conn: &mut PgConnection, isbn: &str, book: BookForm) -> usize {
+    diesel::update(schema::book::table)
+        .filter(schema::book::isbn.eq(isbn))
+        .set(&book)
+        .execute(conn)
+        .unwrap()
 }
 
 #[derive(Queryable, Selectable, Identifiable, Debug, PartialEq)]
