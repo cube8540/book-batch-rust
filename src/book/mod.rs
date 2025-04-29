@@ -74,6 +74,14 @@ impl Book {
                 self.actual_pub_date = Some(act)
             }
         }
+
+        for (site, origin) in &update.origin_data {
+            let origin_entry = self.origin_data.entry(site.clone())
+                .or_insert_with(HashMap::new);
+            for (property, value) in origin {
+                origin_entry.insert(property.clone(), value.clone());
+            }
+        }
     }
 
     pub fn add_origin_data(&mut self, site: Site, property: String, value: String) {

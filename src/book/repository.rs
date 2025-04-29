@@ -70,24 +70,26 @@ impl BookRepository for DieselBookRepository {
             .map(|book| entity::NewBookEntity::new(book))
             .collect::<Vec<entity::NewBookEntity>>();
 
-        let new_books = new_books.chunks(MAX_BUFFER_SIZE);
-        let new_books = new_books.into_iter()
+        let new_book_chunks = new_books.chunks(MAX_BUFFER_SIZE);
+        let new_books = new_book_chunks.into_iter()
             .flat_map(|ch| entity::insert_books(&mut conn, ch))
             .map(|result| {
                 let book = result.to_domain();
-                (&book.isbn, book)
+                (book.isbn.clone(), book)
             })
-            .collect();
+            .collect::<HashMap<String, Book>>();
 
         let new_origins = books.iter()
             .flat_map(|book| {
-                let book = new_books.get(&book.isbn).unwrap();
+                let book = new_books.get(book.isbn.as_str()).unwrap();
                 entity::NewBookOriginDataEntity::new(book.id as i64, &book.origin_data)
             })
-            .collect::<Vec<entity::NewBookOriginDataEntity>>()
-            .chunks(MAX_BUFFER_SIZE);
+            .collect::<Vec<entity::NewBookOriginDataEntity>>();
 
-        new_origins.for_each(|ch| entity::insert_book_origins(&mut conn, ch));
+        let new_origin_chunks = new_origins.chunks(MAX_BUFFER_SIZE);
+        new_origin_chunks.into_iter()
+            .for_each(|ch| entity::insert_book_origins(&mut conn, ch));
+
         new_books.into_values().collect()
     }
 

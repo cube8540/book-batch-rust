@@ -129,9 +129,10 @@ pub struct NewBookOriginDataEntity<'a> {
     pub val: Option<&'a str>,
 }
 
-impl <'a> NewBookOriginDataEntity<'a> {
+impl <'job, 'a> NewBookOriginDataEntity<'a>
+where 'job: 'a {
 
-    pub fn new(id: i64, origin: &HashMap<Site, Original>) -> Vec<Self> {
+    pub fn new(id: i64, origin: &'job HashMap<Site, Original>) -> Vec<Self> {
         let mut new = vec![];
         for (site, site_origin) in origin {
             for (key, value) in site_origin {

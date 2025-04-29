@@ -5,6 +5,7 @@ use crate::book;
 use crate::book::{BookOriginFilterRepository, BookRepository, Publisher, Site};
 use book::Book;
 use std::collections::HashMap;
+use std::rc::Rc;
 
 pub struct Parameter<'job> {
     pub isbn: Option<&'job str>,
@@ -27,14 +28,16 @@ where
         .collect()
 }
 
-pub trait Filter<'f, 'job: 'f> {
-    fn do_filter<'input>(&'f self, books: &'input [&'job Book]) -> Vec<&'job Book>
+pub trait Filter {
+    fn do_filter<'job, 'input>(&self, books: &'input [&'job Book]) -> Vec<&'job Book>
     where 'job: 'input;
 }
 
-pub trait FilterChain<'f, 'job: 'f>: Filter<'f, 'job> {
+pub trait FilterChain: Filter {
 
-    fn chain<'input>(&'f self, books: &'input [&'job Book]) -> Vec<&'job Book> {
+    fn chain<'job, 'input>(&self, books: &'input [&'job Book]) -> Vec<&'job Book>
+    where
+        'job: 'input {
         if let Some(next) = self.next() {
             let filtered = self.do_filter(books);
             next.do_filter(&filtered)
@@ -43,16 +46,16 @@ pub trait FilterChain<'f, 'job: 'f>: Filter<'f, 'job> {
         }
     }
 
-    fn next(&'f self) -> &'f Option<Box<dyn Filter<'f, 'job>>>;
+    fn next(&self) -> &Option<Rc<dyn Filter>>;
 
-    fn add_next(self, filter: Box<dyn Filter<'f, 'job>>) -> Self;
+    fn add_next(self, filter: Rc<dyn Filter>) -> Self;
 }
 
-pub struct EmptyIsbnFilter<'f, 'job: 'f> {
-    next: Option<Box<dyn Filter<'f, 'job>>>
+pub struct EmptyIsbnFilter {
+    next: Option<Rc<dyn Filter>>
 }
 
-impl <'f, 'job: 'f> EmptyIsbnFilter<'_, '_> {
+impl EmptyIsbnFilter {
     pub fn new() -> Self {
         Self {
             next: None
@@ -60,10 +63,11 @@ impl <'f, 'job: 'f> EmptyIsbnFilter<'_, '_> {
     }
 }
 
-impl <'f, 'job: 'f> Filter<'f, 'job> for EmptyIsbnFilter<'f, 'job> {
+impl Filter for EmptyIsbnFilter {
 
-    fn do_filter<'input>(&'f self, books: &'input [&'job Book]) -> Vec<&'job Book>
-    where 'job: 'input{
+    fn do_filter<'job, 'input>(&self, books: &'input [&'job Book]) -> Vec<&'job Book>
+    where
+        'job: 'input{
         books.iter()
             .filter(|b| !b.isbn.eq(""))
             .cloned()
@@ -71,24 +75,24 @@ impl <'f, 'job: 'f> Filter<'f, 'job> for EmptyIsbnFilter<'f, 'job> {
     }
 }
 
-impl <'f, 'job: 'f> FilterChain<'f, 'job> for EmptyIsbnFilter<'f, 'job> {
-    fn next(&'f self) -> &'f Option<Box<dyn Filter<'f, 'job>>> {
+impl FilterChain for EmptyIsbnFilter {
+    fn next(&self) -> &Option<Rc<dyn Filter>> {
         &self.next
     }
 
-    fn add_next(mut self, filter: Box<dyn Filter<'f, 'job>>) -> Self {
+    fn add_next(mut self, filter: Rc<dyn Filter>) -> Self {
         self.next = Some(filter);
         self
     }
 }
 
-pub struct OriginDataFilter<'f, 'job: 'f, R: BookOriginFilterRepository> {
+pub struct OriginDataFilter<R: BookOriginFilterRepository> {
     repository: R,
     site: Site,
-    next: Option<Box<dyn Filter<'f, 'job>>>,
+    next: Option<Rc<dyn Filter>>,
 }
 
-impl <R: BookOriginFilterRepository> OriginDataFilter<'_, '_, R> {
+impl <R: BookOriginFilterRepository> OriginDataFilter<R> {
     pub fn new(repository: R, site: Site) -> Self {
         Self {
             repository,
@@ -98,9 +102,10 @@ impl <R: BookOriginFilterRepository> OriginDataFilter<'_, '_, R> {
     }
 }
 
-impl <'f, 'job: 'f, R: BookOriginFilterRepository> Filter<'f, 'job> for OriginDataFilter<'f, 'job, R> {
-    fn do_filter<'input>(&'f self, books: &'input [&'job Book]) -> Vec<&'job Book>
-    where 'job: 'input {
+impl <R: BookOriginFilterRepository> Filter for OriginDataFilter<R> {
+    fn do_filter<'job, 'input>(&self, books: &'input [&'job Book]) -> Vec<&'job Book>
+    where
+        'job: 'input {
         let filter_map = self.repository.get_root_filters();
 
         if let Some(filter) = filter_map.get(&self.site) {
@@ -117,12 +122,12 @@ impl <'f, 'job: 'f, R: BookOriginFilterRepository> Filter<'f, 'job> for OriginDa
     }
 }
 
-impl <'f, 'job: 'f, R: BookOriginFilterRepository> FilterChain<'f, 'job> for OriginDataFilter<'f, 'job, R> {
-    fn next(&'f self) -> &'f Option<Box<dyn Filter<'f, 'job>>> {
+impl <R: BookOriginFilterRepository> FilterChain for OriginDataFilter<R> {
+    fn next(&self) -> &Option<Rc<dyn Filter>> {
         &self.next
     }
 
-    fn add_next(mut self, filter: Box<dyn Filter<'f, 'job>>) -> Self {
+    fn add_next(mut self, filter: Rc<dyn Filter>) -> Self {
         self.next = Some(filter);
         self
     }
