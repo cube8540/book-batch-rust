@@ -29,15 +29,12 @@ impl PublisherRepository for DieselPublisherRepository {
         let result_set = entity::find_publisher_all(&mut conn);
 
         let mut map = HashMap::<u64, Publisher>::new();
-        result_set.iter().for_each(|item| {
-            let publisher_entity = &item.0;
-            let keyword_entity = &item.1;
-
-            let id = publisher_entity.id as u64;
+        result_set.iter().for_each(|(publisher, keyword)| {
+            let id = publisher.id as u64;
             let publisher = map.entry(id)
-                .or_insert_with(|| Publisher::new(id, publisher_entity.name.clone()));
+                .or_insert_with(|| Publisher::new(id, publisher.name.clone()));
 
-            if let Some(k) = keyword_entity {
+            if let Some(k) = keyword {
                 publisher.add_keyword(k.site.clone(), k.keyword.clone());
             }
         });
@@ -80,8 +77,9 @@ impl BookRepository for DieselBookRepository {
             })
             .collect();
 
-        let results = entity::insert_books(&mut conn, new_entities);
-        results.into_iter().map(|result| result.to_domain()).collect()
+        entity::insert_books(&mut conn, new_entities).into_iter()
+            .map(|result| result.to_domain())
+            .collect()
     }
 
     fn update_books(&self, books: Vec<Book>) -> Vec<Book> {
@@ -139,7 +137,7 @@ impl DieselBookOriginFilterRepository {
 
         for (filter, parent_id) in items.iter() {
             if let Some((parent, _)) = parent_id.and_then(|pid| ref_mut.get(&pid)) {
-                parent.borrow_mut().add_child(filter.clone());
+                parent.borrow_mut().add_node(filter.clone());
             }
         }
 

@@ -21,7 +21,9 @@ pub struct PublisherKeywordEntity {
     pub keyword: String,
 }
 
-pub fn find_publisher_all(conn: &mut PgConnection) -> Vec<(PublisherEntity, Option<PublisherKeywordEntity>)> {
+pub type PublisherWithKeyword = (PublisherEntity, Option<PublisherKeywordEntity>);
+
+pub fn find_publisher_all(conn: &mut PgConnection) -> Vec<PublisherWithKeyword> {
     schema::publisher::table
         .left_join(schema::publisher_keyword::table)
         .select((
@@ -132,7 +134,7 @@ impl BookOriginFilterEntity {
             },
             property_name: self.property_name.clone(),
             regex: self.regex.clone(),
-            children: Vec::new(),
+            nodes: Vec::new(),
         };
         (filter, self.parent_id.map(|p| p as u64))
     }

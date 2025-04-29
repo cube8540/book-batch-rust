@@ -10,9 +10,9 @@ pub mod repository;
 /// 출판사 도메인
 #[derive(Debug, Clone)]
 pub struct Publisher {
-    id: u64,
-    name: String,
-    keywords: HashMap<Site, Vec<String>>,
+    pub id: u64,
+    pub name: String,
+    pub keywords: HashMap<Site, Vec<String>>,
 }
 
 impl Publisher {
@@ -31,14 +31,6 @@ impl Publisher {
             .push(keyword);
     }
 
-    pub fn id(&self) -> u64 {
-        self.id
-    }
-
-    pub fn name(&self) -> &str {
-        &self.name
-    }
-
     pub fn keywords(&self, site: Site) -> Vec<String> {
         self.keywords
             .get(&site)
@@ -47,15 +39,13 @@ impl Publisher {
     }
 }
 
-impl PartialEq<Self> for Publisher {
-    fn eq(&self, other: &Self) -> bool {
-        self.id == other.id
-    }
-}
-
+/// 도서 정보를 가지고 온 사이트
 pub type Site = String;
-pub type Json = HashMap<String, String>;
 
+/// 사이트에서 가져온 도서의 원본 데이터
+pub type Original = HashMap<String, String>;
+
+/// 도서 정보
 #[derive(Debug, Clone)]
 pub struct Book {
     pub id: u64,
@@ -64,7 +54,7 @@ pub struct Book {
     pub title: String,
     pub scheduled_pub_date: Option<chrono::NaiveDate>,
     pub actual_pub_date: Option<chrono::NaiveDate>,
-    pub origin_data: HashMap<Site, Json>,
+    pub origin_data: HashMap<Site, Original>,
 }
 
 impl Book {
@@ -131,6 +121,9 @@ impl Operator {
     }
 }
 
+pub type Node = Rc<RefCell<BookOriginFilter>>;
+
+/// 도서의 원본 데이터를 이용하여 도서가 유효한지 판단한다.
 #[derive(Debug)]
 pub struct BookOriginFilter {
     pub id: u64,
@@ -140,46 +133,33 @@ pub struct BookOriginFilter {
     pub operator: Option<Operator>,
     pub property_name: Option<String>,
     pub regex: Option<String>,
-    pub children: Vec<Rc<RefCell<BookOriginFilter>>>,
+    pub nodes: Vec<Node>,
 }
 
 impl BookOriginFilter {
-    pub fn validate(&self, origin_data: &Json) -> bool {
-        if let Some(operator) = &self.operator {
-            match operator {
-                Operator::AND => {
-                    self.children.iter().all(|child| child.borrow().validate(origin_data))
-                }
-                Operator::OR => {
-                    self.children.iter().any(|child| child.borrow().validate(origin_data))
-                }
-                Operator::NOR => {
-                    self.children.iter().all(|child| !child.borrow().validate(origin_data))
-                }
-                Operator::NAND => {
-                    !self.children.iter().all(|child| child.borrow().validate(origin_data))
-                }
-            }
-        } else if let (Some(regex), Some(property_name)) = (&self.regex, &self.property_name) {
-            let regex = Regex::new(regex).unwrap();
-            if let Some(value) = origin_data.get(property_name) {
-                regex.is_match(value)
-            } else {
-                false
-            }
-        } else {
-            false
-        }
+
+    pub fn add_node(&mut self, node: Node) {
+        self.nodes.push(node);
     }
-}
 
-impl BookOriginFilter {
+    pub fn validate(&self, origin: &Original) -> bool {
+        if let Some(o) = &self.operator {
+            return match o {
+                Operator::AND => self.nodes.iter().all(|c| c.borrow().validate(origin)),
+                Operator::OR => self.nodes.iter().any(|c| c.borrow().validate(origin)),
+                Operator::NOR => self.nodes.iter().all(|c| !c.borrow().validate(origin)),
+                Operator::NAND => !self.nodes.iter().all(|c| c.borrow().validate(origin))
+            }
+        }
+        if let (Some(regex), Some(property)) = (&self.regex, &self.property_name) {
+            let regex = Regex::new(regex).unwrap();
+            return origin.get(property).map_or(false, |v| regex.is_match(v))
+        }
 
-    pub fn add_child(&mut self, child: Rc<RefCell<BookOriginFilter>>) {
-        self.children.push(child);
+        false
     }
 }
 
 pub trait BookOriginFilterRepository {
-    fn get_root_filters(&self) -> HashMap<Site, Rc<RefCell<BookOriginFilter>>>;
+    fn get_root_filters(&self) -> HashMap<Site, Node>;
 }

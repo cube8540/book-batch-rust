@@ -21,7 +21,7 @@ where
     publisher.keywords(site).iter()
         .flat_map(|keyword| {
             let mut books = f(keyword);
-            books.iter_mut().for_each(|b| b.publisher_id = publisher.id());
+            books.iter_mut().for_each(|b| b.publisher_id = publisher.id);
             books
         })
         .collect()
@@ -156,10 +156,10 @@ impl <R: BookRepository> Writer for UpsertWriter<R> {
             }
         });
 
-        let mut result = vec![];
-        self.repository.new_books(new_books).into_iter().for_each(|b| result.push(b));
-        self.repository.update_books(update_books).into_iter().for_each(|b| result.push(b));
-        result
+        let new_books = self.repository.new_books(new_books);
+        let update_books = self.repository.update_books(update_books);
+
+        new_books.into_iter().chain(update_books).collect()
     }
 }
 
