@@ -75,6 +75,12 @@ impl Book {
             }
         }
     }
+
+    pub fn add_origin_data(&mut self, site: Site, property: String, value: String) {
+        self.origin_data.entry(site)
+            .or_insert_with(HashMap::new)
+            .insert(property, value);
+    }
 }
 
 pub trait PublisherRepository {

@@ -1,7 +1,8 @@
 use crate::book;
-use crate::book::{schema, BookOriginFilter};
+use crate::book::{schema, Book, BookOriginFilter, Original, Site};
 use chrono::{NaiveDate, NaiveDateTime};
-use diesel::{AsChangeset, Associations, ExpressionMethods, Identifiable, Insertable, PgConnection, QueryDsl, Queryable, RunQueryDsl, Selectable, SelectableHelper};
+use diesel::{AsChangeset, Associations, BoolExpressionMethods, ExpressionMethods, Identifiable, Insertable, PgConnection, QueryDsl, Queryable, RunQueryDsl, Selectable, SelectableHelper};
+use std::collections::HashMap;
 
 #[derive(Queryable, Selectable, Identifiable, Debug, PartialEq)]
 #[diesel(table_name = schema::publisher)]
@@ -30,7 +31,6 @@ pub fn find_publisher_all(conn: &mut PgConnection) -> Vec<PublisherWithKeyword> 
             PublisherEntity::as_select(),
             Option::<PublisherKeywordEntity>::as_select()
         ))
-        .into_boxed()
         .load(conn)
         .unwrap()
 }
@@ -50,8 +50,8 @@ pub struct BookEntity {
 }
 
 impl BookEntity {
-    pub fn to_domain(&self) -> book::Book {
-        book::Book {
+    pub fn to_domain(&self) -> Book {
+        Book {
             id: self.id as u64,
             isbn: self.isbn.clone(),
             publisher_id: self.publisher_id as u64,
@@ -69,9 +69,23 @@ pub struct NewBookEntity<'a> {
     pub isbn: &'a str,
     pub title: &'a str,
     pub publisher_id: i64,
-    pub scheduled_pub_date: Option<NaiveDate>,
-    pub actual_pub_date: Option<NaiveDate>,
+    pub scheduled_pub_date: Option<&'a NaiveDate>,
+    pub actual_pub_date: Option<&'a NaiveDate>,
     pub registered_at: NaiveDateTime,
+}
+
+impl <'a> NewBookEntity<'a> {
+
+    pub fn new(book: &'a Book) -> Self {
+        Self {
+            isbn: &book.isbn,
+            title: &book.title,
+            publisher_id: book.publisher_id as i64,
+            scheduled_pub_date: book.scheduled_pub_date.as_ref(),
+            actual_pub_date: book.actual_pub_date.as_ref(),
+            registered_at: chrono::Local::now().naive_local(),
+        }
+    }
 }
 
 #[derive(AsChangeset)]
@@ -80,15 +94,70 @@ pub struct BookForm<'a> {
     pub title: &'a str,
     pub scheduled_pub_date: Option<&'a NaiveDate>,
     pub actual_pub_date: Option<&'a NaiveDate>,
-    pub modified_at: &'a NaiveDateTime,
+    pub modified_at: NaiveDateTime,
 }
 
-pub fn find_book_by_isbn(conn: &mut PgConnection, isbn: &[&str]) -> Vec<BookEntity> {
+impl<'a> BookForm<'a> {
+
+    pub fn new(book: &'a Book) -> Self {
+        Self {
+            title: &book.title,
+            scheduled_pub_date: book.scheduled_pub_date.as_ref(),
+            actual_pub_date: book.actual_pub_date.as_ref(),
+            modified_at: chrono::Local::now().naive_local(),
+        }
+    }
+}
+
+#[derive(Queryable, Selectable, Identifiable, Associations, Debug, PartialEq)]
+#[diesel(table_name = schema::book_origin_data)]
+#[diesel(primary_key(book_id, site, property))]
+#[diesel(belongs_to(BookEntity, foreign_key = book_id))]
+pub struct BookOriginDataEntity {
+    pub book_id: i64,
+    pub site: String,
+    pub property: String,
+    pub val: Option<String>
+}
+
+#[derive(Insertable, Debug, PartialEq)]
+#[diesel(table_name = schema::book_origin_data)]
+pub struct NewBookOriginDataEntity<'a> {
+    pub book_id: i64,
+    pub site: &'a str,
+    pub property: &'a str,
+    pub val: Option<&'a str>,
+}
+
+impl <'a> NewBookOriginDataEntity<'a> {
+
+    pub fn new(id: i64, origin: &HashMap<Site, Original>) -> Vec<Self> {
+        let mut new = vec![];
+        for (site, site_origin) in origin {
+            for (key, value) in site_origin {
+                new.push(Self {
+                    book_id: id,
+                    site: site.as_str(),
+                    property: key,
+                    val: Some(value),
+                });
+            }
+        }
+        new
+    }
+}
+
+pub type BookWithOriginData = (BookEntity, Option<BookOriginDataEntity>);
+pub fn find_book_by_isbn(conn: &mut PgConnection, isbn: &[&str]) -> Vec<BookWithOriginData> {
     schema::book::table
         .filter(schema::book::isbn.eq_any(isbn))
-        .select(BookEntity::as_select())
-        .load(conn)
-        .unwrap_or_default()
+        .left_join(schema::book_origin_data::table)
+        .select((
+            BookEntity::as_select(),
+            Option::<BookOriginDataEntity>::as_select()
+        ))
+        .load::<BookWithOriginData>(conn)
+        .unwrap()
 }
 
 pub fn insert_books(conn: &mut PgConnection, books: &[NewBookEntity]) -> Vec<BookEntity> {
@@ -98,10 +167,27 @@ pub fn insert_books(conn: &mut PgConnection, books: &[NewBookEntity]) -> Vec<Boo
         .expect("Error inserting new books.")
 }
 
+pub fn insert_book_origins(conn: &mut PgConnection, origins: &[NewBookOriginDataEntity]) {
+    diesel::insert_into(schema::book_origin_data::table)
+        .values(origins)
+        .execute(conn)
+        .expect("Error inserting new book origin datas");
+}
+
 pub fn update_book(conn: &mut PgConnection, isbn: &str, book: &BookForm) -> usize {
     diesel::update(schema::book::table)
         .filter(schema::book::isbn.eq(isbn))
         .set(book)
+        .execute(conn)
+        .unwrap()
+}
+
+pub fn delete_book_origin_data(conn: &mut PgConnection, id: i64, site: &str) -> usize {
+    diesel::delete(schema::book_origin_data::dsl::book_origin_data
+        .filter(
+            schema::book_origin_data::book_id.eq(id)
+                .and(schema::book_origin_data::site.eq(site))
+        ))
         .execute(conn)
         .unwrap()
 }

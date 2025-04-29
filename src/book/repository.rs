@@ -7,6 +7,8 @@ use std::rc::Rc;
 type DbPool = r2d2::Pool<diesel::r2d2::ConnectionManager<PgConnection>>;
 type DbConnection = r2d2::PooledConnection<diesel::r2d2::ConnectionManager<PgConnection>>;
 
+const MAX_BUFFER_SIZE: usize = 100;
+
 fn get_connection(pool: &DbPool) -> DbConnection {
     pool.get().expect("Failed to get db connection from pool")
 }
@@ -58,27 +60,35 @@ impl BookRepository for DieselBookRepository {
     fn get_by_isbn(&self, isbn: &[&str]) -> Vec<Book> {
         let mut conn = get_connection(&self.pool);
         let result_set = entity::find_book_by_isbn(&mut conn, isbn);
-        result_set.iter()
-            .map(|book| book.to_domain())
-            .collect()
+        mapping_book_and_origin_data(result_set)
     }
 
     fn new_books(&self, books: &[&Book]) -> Vec<Book> {
         let mut conn = get_connection(&self.pool);
-        let new_entities  = books.iter()
-            .map(|book| entity::NewBookEntity {
-                isbn: &book.isbn,
-                title: &book.title,
-                publisher_id: book.publisher_id as i64,
-                scheduled_pub_date: book.scheduled_pub_date,
-                actual_pub_date: book.actual_pub_date,
-                registered_at: chrono::Local::now().naive_local(),
-            })
+
+        let new_books  = books.iter()
+            .map(|book| entity::NewBookEntity::new(book))
             .collect::<Vec<entity::NewBookEntity>>();
 
-        entity::insert_books(&mut conn, &new_entities).iter()
-            .map(|result| result.to_domain())
-            .collect()
+        let new_books = new_books.chunks(MAX_BUFFER_SIZE);
+        let new_books = new_books.into_iter()
+            .flat_map(|ch| entity::insert_books(&mut conn, ch))
+            .map(|result| {
+                let book = result.to_domain();
+                (&book.isbn, book)
+            })
+            .collect();
+
+        let new_origins = books.iter()
+            .flat_map(|book| {
+                let book = new_books.get(&book.isbn).unwrap();
+                entity::NewBookOriginDataEntity::new(book.id as i64, &book.origin_data)
+            })
+            .collect::<Vec<entity::NewBookOriginDataEntity>>()
+            .chunks(MAX_BUFFER_SIZE);
+
+        new_origins.for_each(|ch| entity::insert_book_origins(&mut conn, ch));
+        new_books.into_values().collect()
     }
 
     fn update_books(&self, books: &[&Book]) -> Vec<Book> {
@@ -86,14 +96,15 @@ impl BookRepository for DieselBookRepository {
 
         let mut updated_isbn = vec![];
         books.iter().for_each(|book| {
-            let form = entity::BookForm {
-                title: &book.title,
-                scheduled_pub_date: book.scheduled_pub_date.as_ref(),
-                actual_pub_date: book.actual_pub_date.as_ref(),
-                modified_at: &chrono::Local::now().naive_local()
-            };
+            let form = entity::BookForm::new(book);
             let updated = entity::update_book(&mut conn, &book.isbn, &form);
             if updated > 0 {
+                let id = book.id as i64;
+                book.origin_data.iter().for_each(|(site, _)| {
+                    entity::delete_book_origin_data(&mut conn, id, site);
+                });
+                let new_origins = entity::NewBookOriginDataEntity::new(id, &book.origin_data);
+                entity::insert_book_origins(&mut conn, &new_origins);
                 updated_isbn.push(book.isbn.as_str())
             }
         });
@@ -151,4 +162,18 @@ impl BookOriginFilterRepository for DieselBookOriginFilterRepository {
             });
         map
     }
+}
+
+fn mapping_book_and_origin_data(entities: Vec<entity::BookWithOriginData>) -> Vec<Book> {
+    let mut books = HashMap::new();
+    for (book_entity, origin) in entities {
+        let entry = books.entry(book_entity.isbn.clone());
+        let book = entry.or_insert_with(|| book_entity.to_domain());
+        if let Some(origin) = origin {
+            if let Some(val) = origin.val {
+                book.add_origin_data(origin.site, origin.property, val);
+            }
+        }
+    }
+    books.into_values().collect()
 }

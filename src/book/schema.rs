@@ -50,11 +50,24 @@ diesel::table! {
     }
 }
 
+diesel::table! {
+    books.book_origin_data (book_id, site, property) {
+        book_id -> Int8,
+        #[max_length = 32]
+        site -> Varchar,
+        #[max_length = 64]
+        property -> Varchar,
+        val -> Nullable<Text>,
+    }
+}
+
 diesel::joinable!(book -> publisher (publisher_id));
 diesel::joinable!(publisher_keyword -> publisher (publisher_id));
+diesel::joinable!(book_origin_data -> book (book_id));
 
 diesel::allow_tables_to_appear_in_same_query!(
     book,
     publisher,
     publisher_keyword,
+    book_origin_data,
 );

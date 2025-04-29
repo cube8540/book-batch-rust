@@ -37,3 +37,13 @@ create table if not exists books.book(
                                          foreign key (series_id) references books.series(id)
 );
 alter sequence if exists books.book_id_seq owned by books.book.id;
+
+create table if not exists books.book_origin_data (
+                                  book_id bigint not null ,
+                                  site varchar(32) not null ,
+                                  property varchar(64) not null ,
+                                  val text,
+
+                                  primary key (book_id, site, property),
+                                  foreign key (book_id) references books.book(id)
+);
