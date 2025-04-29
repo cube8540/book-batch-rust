@@ -69,8 +69,8 @@ impl Filter for EmptyIsbnFilter {
     where
         'job: 'input{
         books.iter()
-            .filter(|b| !b.isbn.eq(""))
-            .cloned()
+            .filter(|b| !b.isbn.is_empty())
+            .copied()
             .collect()
     }
 }
@@ -114,10 +114,10 @@ impl <R: BookOriginFilterRepository> Filter for OriginDataFilter<R> {
                     b.origin_data.get(&self.site)
                         .map_or(false, |o| filter.borrow().validate(o))
                 })
-                .cloned()
+                .copied()
                 .collect()
         } else {
-            books.iter().cloned().collect()
+            books.iter().copied().collect()
         }
     }
 }
@@ -154,10 +154,10 @@ impl <R: BookRepository> Writer for OnlyInsertWriter<R> {
     fn write(&self, books: &[&Book]) -> Vec<Book> {
         let exists = get_target_books(&self.repository, &books);
 
-        let new_books = books.iter()
+        let new_books: Vec<&Book> = books.iter()
             .filter(|b| !exists.contains_key(&b.isbn))
-            .cloned()
-            .collect::<Vec<&Book>>();
+            .copied()
+            .collect();
 
         self.repository.new_books(&new_books)
     }
