@@ -1,4 +1,4 @@
-use crate::book::{entity, Book, BookOriginFilter, BookOriginFilterRepository, BookRepository, Publisher, PublisherRepository, Site};
+use crate::book::{entity, Book, BookOriginFilterRepository, BookRepository, Node, Publisher, PublisherRepository, Site};
 use diesel::PgConnection;
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -55,7 +55,7 @@ impl DieselBookRepository {
 }
 
 impl BookRepository for DieselBookRepository {
-    fn get_by_isbn(&self, isbn: &Vec<&str>) -> Vec<Book> {
+    fn get_by_isbn(&self, isbn: &[&str]) -> Vec<Book> {
         let mut conn = get_connection(&self.pool);
         let result_set = entity::find_book_by_isbn(&mut conn, isbn);
         result_set.iter()
@@ -63,10 +63,9 @@ impl BookRepository for DieselBookRepository {
             .collect()
     }
 
-    fn new_books(&self, books: Vec<Book>) -> Vec<Book> {
+    fn new_books(&self, books: &[&Book]) -> Vec<Book> {
         let mut conn = get_connection(&self.pool);
-        let new_entities: Vec<entity::NewBookEntity> = books
-            .iter()
+        let new_entities  = books.iter()
             .map(|book| entity::NewBookEntity {
                 isbn: &book.isbn,
                 title: &book.title,
@@ -75,39 +74,35 @@ impl BookRepository for DieselBookRepository {
                 actual_pub_date: book.actual_pub_date,
                 registered_at: chrono::Local::now().naive_local(),
             })
-            .collect();
+            .collect::<Vec<entity::NewBookEntity>>();
 
-        entity::insert_books(&mut conn, new_entities).into_iter()
+        entity::insert_books(&mut conn, &new_entities).iter()
             .map(|result| result.to_domain())
             .collect()
     }
 
-    fn update_books(&self, books: Vec<Book>) -> Vec<Book> {
+    fn update_books(&self, books: &[&Book]) -> Vec<Book> {
         let mut conn = get_connection(&self.pool);
-        let map = books.into_iter()
-            .map(|b| (b.isbn.clone(), b))
-            .collect::<HashMap<String, Book>>();
 
-        map.iter()
-            .for_each(|(isbn, book)| {
-                let form = entity::BookForm {
-                    title: &book.title,
-                    scheduled_pub_date: book.scheduled_pub_date.as_ref(),
-                    actual_pub_date: book.actual_pub_date.as_ref(),
-                    modified_at: &chrono::Local::now().naive_local()
-                };
-                entity::update_book(&mut conn, &isbn, form);
-            });
+        let mut updated_isbn = vec![];
+        books.iter().for_each(|book| {
+            let form = entity::BookForm {
+                title: &book.title,
+                scheduled_pub_date: book.scheduled_pub_date.as_ref(),
+                actual_pub_date: book.actual_pub_date.as_ref(),
+                modified_at: &chrono::Local::now().naive_local()
+            };
+            let updated = entity::update_book(&mut conn, &book.isbn, &form);
+            if updated > 0 {
+                updated_isbn.push(book.isbn.as_str())
+            }
+        });
 
-        let k = map.keys()
-            .map(|k| k.as_str())
-            .collect::<Vec<&str>>();
-        self.get_by_isbn(&k)
+        self.get_by_isbn(&updated_isbn)
     }
 }
 
 type ParentId = u64;
-type BookOriginFilterRef = Rc<RefCell<BookOriginFilter>>;
 
 pub struct DieselBookOriginFilterRepository {
     pool: DbPool
@@ -120,7 +115,7 @@ impl DieselBookOriginFilterRepository {
         }
     }
 
-    fn get_all(&self) -> Vec<(BookOriginFilterRef, Option<ParentId>)> {
+    fn get_all(&self) -> Vec<(Node, Option<ParentId>)> {
         let filter_map = RefCell::new(HashMap::new());
         let mut ref_mut = filter_map.borrow_mut();
 
@@ -131,7 +126,7 @@ impl DieselBookOriginFilterRepository {
                 ref_mut.insert(filter.id, (Rc::new(RefCell::new(filter)), parent_id));
             });
 
-        let items: Vec<(BookOriginFilterRef, Option<ParentId>)> = ref_mut.iter_mut()
+        let items: Vec<(Node, Option<ParentId>)> = ref_mut.iter_mut()
             .map(|(_, (filter, parent_id))| (filter.clone(), *parent_id))
             .collect();
 
@@ -146,7 +141,7 @@ impl DieselBookOriginFilterRepository {
 }
 
 impl BookOriginFilterRepository for DieselBookOriginFilterRepository {
-    fn get_root_filters(&self) -> HashMap<Site, BookOriginFilterRef> {
+    fn get_root_filters(&self) -> HashMap<Site, Node> {
         let mut map = HashMap::new();
         self.get_all().into_iter()
             .for_each(|(filter, _)| {

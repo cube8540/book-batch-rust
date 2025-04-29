@@ -83,7 +83,7 @@ pub struct BookForm<'a> {
     pub modified_at: &'a NaiveDateTime,
 }
 
-pub fn find_book_by_isbn(conn: &mut PgConnection, isbn: &Vec<&str>) -> Vec<BookEntity> {
+pub fn find_book_by_isbn(conn: &mut PgConnection, isbn: &[&str]) -> Vec<BookEntity> {
     schema::book::table
         .filter(schema::book::isbn.eq_any(isbn))
         .select(BookEntity::as_select())
@@ -91,17 +91,17 @@ pub fn find_book_by_isbn(conn: &mut PgConnection, isbn: &Vec<&str>) -> Vec<BookE
         .unwrap_or_default()
 }
 
-pub fn insert_books(conn: &mut PgConnection, books: Vec<NewBookEntity>) -> Vec<BookEntity> {
+pub fn insert_books(conn: &mut PgConnection, books: &[NewBookEntity]) -> Vec<BookEntity> {
     diesel::insert_into(schema::book::table)
         .values(books)
         .get_results(conn)
         .expect("Error inserting new books.")
 }
 
-pub fn update_book(conn: &mut PgConnection, isbn: &str, book: BookForm) -> usize {
+pub fn update_book(conn: &mut PgConnection, isbn: &str, book: &BookForm) -> usize {
     diesel::update(schema::book::table)
         .filter(schema::book::isbn.eq(isbn))
-        .set(&book)
+        .set(book)
         .execute(conn)
         .unwrap()
 }

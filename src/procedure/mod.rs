@@ -6,9 +6,9 @@ use crate::book::{BookOriginFilterRepository, BookRepository, Publisher, Site};
 use book::Book;
 use std::collections::HashMap;
 
-pub struct Parameter {
-    pub isbn: Option<String>,
-    pub publisher: Option<Publisher>,
+pub struct Parameter<'job> {
+    pub isbn: Option<&'job str>,
+    pub publisher: Option<&'job Publisher>,
 }
 
 pub trait Reader {
@@ -27,80 +27,109 @@ where
         .collect()
 }
 
-pub trait Filter {
-    fn do_filter(&self, books: Vec<Book>) -> Vec<Book>;
+pub trait Filter<'f, 'job: 'f> {
+    fn do_filter<'input>(&'f self, books: &'input [&'job Book]) -> Vec<&'job Book>
+    where 'job: 'input;
 }
 
-pub struct FilterChain {
-    filters: Vec<Box<dyn Filter>>,
-}
+pub trait FilterChain<'f, 'job: 'f>: Filter<'f, 'job> {
 
-impl FilterChain {
-    pub fn new() -> Self {
-        Self {
-            filters: vec![]
+    fn chain<'input>(&'f self, books: &'input [&'job Book]) -> Vec<&'job Book> {
+        if let Some(next) = self.next() {
+            let filtered = self.do_filter(books);
+            next.do_filter(&filtered)
+        } else {
+            self.do_filter(books)
         }
     }
 
-    pub fn add_filter(mut self, filter: Box<dyn Filter>) -> Self {
-        self.filters.push(filter);
+    fn next(&'f self) -> &'f Option<Box<dyn Filter<'f, 'job>>>;
+
+    fn add_next(self, filter: Box<dyn Filter<'f, 'job>>) -> Self;
+}
+
+pub struct EmptyIsbnFilter<'f, 'job: 'f> {
+    next: Option<Box<dyn Filter<'f, 'job>>>
+}
+
+impl <'f, 'job: 'f> EmptyIsbnFilter<'_, '_> {
+    pub fn new() -> Self {
+        Self {
+            next: None
+        }
+    }
+}
+
+impl <'f, 'job: 'f> Filter<'f, 'job> for EmptyIsbnFilter<'f, 'job> {
+
+    fn do_filter<'input>(&'f self, books: &'input [&'job Book]) -> Vec<&'job Book>
+    where 'job: 'input{
+        books.iter()
+            .filter(|b| !b.isbn.eq(""))
+            .cloned()
+            .collect()
+    }
+}
+
+impl <'f, 'job: 'f> FilterChain<'f, 'job> for EmptyIsbnFilter<'f, 'job> {
+    fn next(&'f self) -> &'f Option<Box<dyn Filter<'f, 'job>>> {
+        &self.next
+    }
+
+    fn add_next(mut self, filter: Box<dyn Filter<'f, 'job>>) -> Self {
+        self.next = Some(filter);
         self
     }
 }
 
-impl Filter for FilterChain {
-    fn do_filter(&self, books: Vec<Book>) -> Vec<Book> {
-        self.filters.iter().fold(books, |books, filter| filter.do_filter(books))
-    }
-}
-
-pub struct EmptyIsbnFilter;
-
-impl EmptyIsbnFilter {
-    pub fn new() -> Self {
-        Self {}
-    }
-}
-
-impl Filter for EmptyIsbnFilter {
-    fn do_filter(&self, books: Vec<Book>) -> Vec<Book> {
-        books.into_iter().filter(|b| !b.isbn.is_empty()).collect()
-    }
-}
-
-pub struct OriginDataFilter<R: BookOriginFilterRepository> {
+pub struct OriginDataFilter<'f, 'job: 'f, R: BookOriginFilterRepository> {
     repository: R,
     site: Site,
+    next: Option<Box<dyn Filter<'f, 'job>>>,
 }
 
-impl <R: BookOriginFilterRepository> OriginDataFilter<R> {
+impl <R: BookOriginFilterRepository> OriginDataFilter<'_, '_, R> {
     pub fn new(repository: R, site: Site) -> Self {
         Self {
             repository,
             site,
+            next: None,
         }
     }
 }
 
-impl<R: BookOriginFilterRepository> Filter for OriginDataFilter<R> {
-    fn do_filter(&self, books: Vec<Book>) -> Vec<Book> {
+impl <'f, 'job: 'f, R: BookOriginFilterRepository> Filter<'f, 'job> for OriginDataFilter<'f, 'job, R> {
+    fn do_filter<'input>(&'f self, books: &'input [&'job Book]) -> Vec<&'job Book>
+    where 'job: 'input {
         let filter_map = self.repository.get_root_filters();
 
-        match filter_map.get(&self.site) {
-            Some(filter) => books.into_iter()
-                .filter(|book| {
-                    book.origin_data
-                        .get(&self.site)
-                        .map_or(true, |origin| filter.borrow().validate(origin))
+        if let Some(filter) = filter_map.get(&self.site) {
+            books.iter()
+                .filter(|b| {
+                    b.origin_data.get(&self.site)
+                        .map_or(false, |o| filter.borrow().validate(o))
                 })
-                .collect(),
-            None => books
+                .cloned()
+                .collect()
+        } else {
+            books.iter().cloned().collect()
         }
+    }
+}
+
+impl <'f, 'job: 'f, R: BookOriginFilterRepository> FilterChain<'f, 'job> for OriginDataFilter<'f, 'job, R> {
+    fn next(&'f self) -> &'f Option<Box<dyn Filter<'f, 'job>>> {
+        &self.next
+    }
+
+    fn add_next(mut self, filter: Box<dyn Filter<'f, 'job>>) -> Self {
+        self.next = Some(filter);
+        self
     }
 }
 
 pub trait Writer {
-    fn write(&self, books: Vec<Book>) -> Vec<Book>; // TODO 에러 처리
+    fn write(&self, books: &[&Book]) -> Vec<Book>;
 }
 
 pub struct OnlyInsertWriter<R: BookRepository> {
@@ -117,14 +146,15 @@ impl <R: BookRepository> OnlyInsertWriter<R> {
 }
 
 impl <R: BookRepository> Writer for OnlyInsertWriter<R> {
-    fn write(&self, books: Vec<Book>) -> Vec<Book> {
+    fn write(&self, books: &[&Book]) -> Vec<Book> {
         let exists = get_target_books(&self.repository, &books);
 
-        let new_books = books.into_iter()
+        let new_books = books.iter()
             .filter(|b| !exists.contains_key(&b.isbn))
-            .collect::<Vec<Book>>();
+            .cloned()
+            .collect::<Vec<&Book>>();
 
-        self.repository.new_books(new_books)
+        self.repository.new_books(&new_books)
     }
 }
 
@@ -142,29 +172,32 @@ impl <R: BookRepository> UpsertWriter<R> {
 }
 
 impl <R: BookRepository> Writer for UpsertWriter<R> {
-    fn write(&self, books: Vec<Book>) -> Vec<Book> {
+    fn write(&self, books: &[&Book]) -> Vec<Book> {
         let mut exists = get_target_books(&self.repository, &books);
 
-        let mut new_books = vec![];
-        let mut update_books = vec![];
+        let mut new_books: Vec<&Book> = vec![];
+        let mut update_books: Vec<Book> = vec![];
 
-        books.into_iter().for_each(|book| {
-            if let Some(ext) = exists.remove(&book.isbn) {
-                update_books.push(ext.merge(book));
+        books.iter().for_each(|book| {
+            if let Some(mut ext) = exists.remove(&book.isbn) {
+                ext.merge(book);
+                update_books.push(ext);
             } else {
                 new_books.push(book);
             }
         });
 
-        let new_books = self.repository.new_books(new_books);
-        let update_books = self.repository.update_books(update_books);
+        let new_books = self.repository.new_books(&new_books);
+        let update_books = self.repository.update_books(&update_books.iter().collect::<Vec<&Book>>());
 
         new_books.into_iter().chain(update_books).collect()
     }
 }
 
-fn get_target_books<R: BookRepository>(repository: &R, target: &Vec<Book>) -> HashMap<String, Book> {
-    let isbn = target.iter().map(|b| b.isbn.as_str()).collect();
+fn get_target_books<R: BookRepository>(repository: &R, target: &[&Book]) -> HashMap<String, Book> {
+    let isbn = target.iter()
+        .map(|b| b.isbn.as_str())
+        .collect::<Vec<&str>>();
 
     repository.get_by_isbn(&isbn).into_iter()
         .map(|b| (b.isbn.clone(), b))
