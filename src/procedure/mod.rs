@@ -5,7 +5,6 @@ use crate::book;
 use crate::book::{BookOriginFilterRepository, BookRepository, Publisher, Site};
 use book::Book;
 use std::collections::HashMap;
-use std::rc::Rc;
 
 pub struct Parameter<'job> {
     pub isbn: Option<&'job str>,
@@ -33,33 +32,36 @@ pub trait Filter {
     where 'job: 'input;
 }
 
-pub trait FilterChain: Filter {
+pub struct FilterChain {
+    next: Vec<Box<dyn Filter>>
+}
 
-    fn chain<'job, 'input>(&self, books: &'input [&'job Book]) -> Vec<&'job Book>
-    where
-        'job: 'input {
-        if let Some(next) = self.next() {
-            let filtered = self.do_filter(books);
-            next.do_filter(&filtered)
-        } else {
-            self.do_filter(books)
+impl FilterChain {
+    pub fn new() -> Self {
+        Self {
+            next: vec![]
         }
     }
 
-    fn next(&self) -> &Option<Rc<dyn Filter>>;
-
-    fn add_next(self, filter: Rc<dyn Filter>) -> Self;
+    pub fn add_filter(&mut self, filter: Box<dyn Filter>) {
+        self.next.push(filter);
+    }
 }
 
-pub struct EmptyIsbnFilter {
-    next: Option<Rc<dyn Filter>>
+impl Filter for FilterChain {
+    fn do_filter<'job, 'input>(&self, books: &'input [&'job Book]) -> Vec<&'job Book>
+    where
+        'job: 'input {
+        self.next.iter()
+            .fold(books.to_vec(), |books, filter| filter.do_filter(&books))
+    }
 }
+
+pub struct EmptyIsbnFilter;
 
 impl EmptyIsbnFilter {
     pub fn new() -> Self {
-        Self {
-            next: None
-        }
+        Self {}
     }
 }
 
@@ -75,21 +77,9 @@ impl Filter for EmptyIsbnFilter {
     }
 }
 
-impl FilterChain for EmptyIsbnFilter {
-    fn next(&self) -> &Option<Rc<dyn Filter>> {
-        &self.next
-    }
-
-    fn add_next(mut self, filter: Rc<dyn Filter>) -> Self {
-        self.next = Some(filter);
-        self
-    }
-}
-
 pub struct OriginDataFilter<R: BookOriginFilterRepository> {
     repository: R,
     site: Site,
-    next: Option<Rc<dyn Filter>>,
 }
 
 impl <R: BookOriginFilterRepository> OriginDataFilter<R> {
@@ -97,7 +87,6 @@ impl <R: BookOriginFilterRepository> OriginDataFilter<R> {
         Self {
             repository,
             site,
-            next: None,
         }
     }
 }
@@ -119,17 +108,6 @@ impl <R: BookOriginFilterRepository> Filter for OriginDataFilter<R> {
         } else {
             books.iter().copied().collect()
         }
-    }
-}
-
-impl <R: BookOriginFilterRepository> FilterChain for OriginDataFilter<R> {
-    fn next(&self) -> &Option<Rc<dyn Filter>> {
-        &self.next
-    }
-
-    fn add_next(mut self, filter: Rc<dyn Filter>) -> Self {
-        self.next = Some(filter);
-        self
     }
 }
 
