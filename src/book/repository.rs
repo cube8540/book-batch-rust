@@ -63,6 +63,13 @@ impl BookRepository for DieselBookRepository {
         mapping_book_and_origin_data(result_set)
     }
 
+    fn get_book_only_by_isbn(&self, isbn: &[&str]) -> Vec<Book> {
+        let mut conn = get_connection(&self.pool);
+        entity::find_book_only_by_isbn(&mut conn, isbn).into_iter()
+            .map(|b| b.to_domain())
+            .collect()
+    }
+
     fn new_books(&self, books: &[&Book]) -> Vec<Book> {
         let mut conn = get_connection(&self.pool);
 

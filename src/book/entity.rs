@@ -161,6 +161,14 @@ pub fn find_book_by_isbn(conn: &mut PgConnection, isbn: &[&str]) -> Vec<BookWith
         .unwrap()
 }
 
+pub fn find_book_only_by_isbn(conn: &mut PgConnection, isbn: &[&str]) -> Vec<BookEntity> {
+    schema::book::table
+        .filter(schema::book::isbn.eq_any(isbn))
+        .select(BookEntity::as_select())
+        .load::<BookEntity>(conn)
+        .unwrap()
+}
+
 pub fn insert_books(conn: &mut PgConnection, books: &[NewBookEntity]) -> Vec<BookEntity> {
     diesel::insert_into(schema::book::table)
         .values(books)

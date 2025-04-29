@@ -204,7 +204,7 @@ fn get_target_books<R: BookRepository>(repository: &R, target: &[&Book]) -> Hash
         .map(|b| b.isbn.as_str())
         .collect::<Vec<&str>>();
 
-    repository.get_by_isbn(&isbn).into_iter()
+    repository.get_book_only_by_isbn(&isbn).into_iter()
         .map(|b| (b.isbn.clone(), b))
         .collect::<HashMap<String, Book>>()
 }
