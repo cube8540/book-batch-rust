@@ -1,8 +1,8 @@
-use crate::book::repository::diesel::entity::{delete_book_origin_data, insert_book_origins, insert_books, update_book, BookEntity, BookForm, BookOriginDataEntity, NewBookEntity, NewBookOriginDataEntity};
+use crate::book::repository::diesel::entity::{BookEntity, BookForm, BookOriginDataEntity, NewBookEntity, NewBookOriginDataEntity};
 use crate::book::repository::diesel::{get_connection, schema, DbPool};
 use crate::book::repository::BookRepository;
-use crate::book::Book;
-use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl, SelectableHelper};
+use crate::book::{Book, Original, Site};
+use diesel::{BoolExpressionMethods, ExpressionMethods, QueryDsl, RunQueryDsl, SelectableHelper};
 use std::collections::HashMap;
 
 const MAX_BUFFER_SIZE: usize = 100;
@@ -18,82 +18,137 @@ impl Repository {
 }
 
 impl BookRepository for Repository {
-    fn get_by_isbn<'book, I>(&self, isbn: I) -> Vec<Book>
+    fn find_by_isbn<'book, I>(&self, isbn: I) -> Vec<Book>
     where
         I: Iterator<Item=&'book str>
     {
-        let entities = schema::book::table
+        let entities: Vec<BookEntity> = schema::book::table
             .filter(schema::book::isbn.eq_any(isbn))
             .left_join(schema::book_origin_data::table)
-            .select((
-                BookEntity::as_select(),
-                Option::<BookOriginDataEntity>::as_select()
-            ))
+            .select(BookEntity::as_select())
             .into_boxed()
             .load(&mut get_connection(&self.pool))
             .unwrap();
 
-        let mut books = HashMap::new();
-        for (book_entity, origin) in entities {
-            let entry = books.entry(book_entity.isbn.clone());
-            let book = entry.or_insert_with(|| book_entity.to_domain());
-            if let Some(origin) = origin {
-                if let Some(val) = origin.val {
-                    book.add_origin_data(origin.site, origin.property, val);
-                }
-            }
-        }
-        books.into_values().collect()
+        entities.iter()
+            .map(|e| e.to_domain())
+            .collect()
     }
 
-    fn new_books(&self, books: &[&Book]) -> Vec<Book> {
-        let mut conn = get_connection(&self.pool);
+    fn find_origin_by_id<I>(&self, id: I) -> HashMap<u64, HashMap<Site, Original>>
+    where
+        I: Iterator<Item=u64>
+    {
+        let mut result: HashMap<u64, HashMap<Site, Original>> = HashMap::new();
 
-        let new_books  = books.iter()
-            .map(|book| NewBookEntity::new(book))
-            .collect::<Vec<NewBookEntity>>();
+        let id = id.map(|id| id.clone() as i64);
+        let origins: Vec<BookOriginDataEntity> = schema::book_origin_data::table
+            .filter(schema::book_origin_data::book_id.eq_any(id))
+            .select(BookOriginDataEntity::as_select())
+            .load(&mut get_connection(&self.pool))
+            .unwrap();
 
-        let new_book_chunks = new_books.chunks(MAX_BUFFER_SIZE);
-        let new_books = new_book_chunks.into_iter()
-            .flat_map(|ch| insert_books(&mut conn, ch))
-            .map(|result| {
-                let book = result.to_domain();
-                (book.isbn.clone(), book)
-            })
-            .collect::<HashMap<String, Book>>();
-
-        let new_origins = books.iter()
-            .flat_map(|book| {
-                let book = new_books.get(book.isbn.as_str()).unwrap();
-                NewBookOriginDataEntity::new(book.id as i64, &book.origin_data)
-            })
-            .collect::<Vec<NewBookOriginDataEntity>>();
-
-        let new_origin_chunks = new_origins.chunks(MAX_BUFFER_SIZE);
-        new_origin_chunks.into_iter()
-            .for_each(|ch| insert_book_origins(&mut conn, ch));
-
-        new_books.into_values().collect()
-    }
-
-    fn update_books(&self, books: &[&Book]) -> Vec<Book> {
-        let mut conn = get_connection(&self.pool);
-
-        let mut updated_isbn = vec![];
-        books.iter().for_each(|book| {
-            let form = BookForm::new(book);
-            let updated = update_book(&mut conn, &book.isbn, &form);
-            if updated > 0 {
-                let id = book.id as i64;
-                book.origin_data.iter().for_each(|(site, _)| {
-                    delete_book_origin_data(&mut conn, id, site);
-                });
-                let new_origins = NewBookOriginDataEntity::new(id, &book.origin_data);
-                insert_book_origins(&mut conn, &new_origins);
-                updated_isbn.push(book.isbn.as_str())
+        origins.into_iter().for_each(|entity| {
+            if let Some(v) = entity.val {
+                let id = entity.book_id as u64;
+                result.entry(id)
+                    .or_insert_with(|| HashMap::new()).entry(entity.site)
+                    .or_insert_with(|| HashMap::new())
+                    .insert(entity.property, v);
             }
         });
+        result
+    }
 
-        self.get_by_isbn(updated_isbn.into_iter())
+    fn new_books<'book, I>(&self, books: I, with_origin: bool) -> Vec<Book>
+    where
+        I: IntoIterator<Item=&'book Book>
+    {
+        let mut mapping_books: HashMap<String, &Book> = HashMap::new();
+        let mut new_books: Vec<NewBookEntity> = vec![];
+
+        for book in books {
+            mapping_books.insert(book.isbn.clone(), book);
+            new_books.push(NewBookEntity::new(book));
+        }
+
+        let mut connection = get_connection(&self.pool);
+        let registered_books: Vec<Book> = new_books.chunks(MAX_BUFFER_SIZE).into_iter()
+            .flat_map(|books| {
+                diesel::insert_into(schema::book::table)
+                    .values(books)
+                    .get_results::<BookEntity>(&mut connection)
+                    .expect("Error inserting new books.")
+            })
+            .map(|result| result.to_domain())
+            .collect();
+
+        if with_origin {
+            let new_origins = registered_books
+                .iter()
+                .filter_map(|b| mapping_books.get(&b.isbn).map(|b| (b.id, &b.origin_data)));
+            self.new_origin_data(new_origins);
+        }
+        registered_books
+
+    }
+
+    fn new_origin_data<'book, I>(&self, origins: I) -> usize
+    where
+        I: IntoIterator<Item=(u64, &'book HashMap<Site, Original>)>
+    {
+        let new_origins: Vec<NewBookOriginDataEntity> = origins
+            .into_iter()
+            .flat_map(|(id, original)| {
+                original.iter()
+                    .flat_map(move |(key, val)| {
+                        NewBookOriginDataEntity::new(id as i64, key, val)
+                    })
+            })
+            .collect();
+
+        let mut connection = get_connection(&self.pool);
+        new_origins.chunks(MAX_BUFFER_SIZE).into_iter()
+            .flat_map(|origins| {
+                diesel::insert_into(schema::book_origin_data::table)
+                    .values(origins)
+                    .execute(&mut connection)
+            })
+            .sum()
+    }
+
+    fn update_books<'book, I>(&self, books: I, with_origin: bool) -> usize
+    where
+        I: IntoIterator<Item=&'book Book>
+    {
+        let mut connection = get_connection(&self.pool);
+        books.into_iter()
+            .map(|book| {
+                let form = BookForm::new(book);
+                let mut count = diesel::update(schema::book::table)
+                    .filter(schema::book::id.eq(book.id as i64))
+                    .set(form)
+                    .execute(&mut connection)
+                    .unwrap();
+                if count > 0 && with_origin {
+                    book.origin_data.iter().for_each(|(site, _)| {
+                        self.delete_origin_data(book.id.clone(), site);
+                    });
+                    count += self.new_origin_data([(book.id, &book.origin_data)]);
+                }
+                count
+            })
+            .sum()
+    }
+
+    fn delete_origin_data(&self, id: u64, site: &Site) -> usize {
+        diesel::delete(schema::book_origin_data::dsl::book_origin_data
+            .filter(
+                schema::book_origin_data::book_id.eq(id as i64)
+                    .and(schema::book_origin_data::site.eq(site))
+            ))
+            .into_boxed()
+            .execute(&mut get_connection(&self.pool))
+            .unwrap()
     }
 }

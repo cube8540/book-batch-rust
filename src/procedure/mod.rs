@@ -1,6 +1,6 @@
 pub mod filter;
 pub mod reader;
-mod writer;
+pub mod writer;
 
 use crate::book::{Publisher, Site};
 

@@ -2,8 +2,7 @@ use crate::book;
 use crate::book::repository::diesel::schema;
 use crate::book::{Book, BookOriginFilter, Original, Site};
 use chrono::{NaiveDate, NaiveDateTime};
-use diesel::{AsChangeset, Associations, BoolExpressionMethods, ExpressionMethods, Identifiable, Insertable, PgConnection, QueryDsl, Queryable, RunQueryDsl, Selectable, SelectableHelper};
-use std::collections::HashMap;
+use diesel::{AsChangeset, Associations, ExpressionMethods, Identifiable, Insertable, Queryable, Selectable};
 
 #[derive(Queryable, Selectable, Identifiable, Debug, PartialEq)]
 #[diesel(table_name = schema::publisher)]
@@ -120,61 +119,18 @@ pub struct NewBookOriginDataEntity<'a> {
 impl <'job, 'a> NewBookOriginDataEntity<'a>
 where 'job: 'a {
 
-    pub fn new(id: i64, origin: &'job HashMap<Site, Original>) -> Vec<Self> {
-        let mut new = vec![];
-        for (site, site_origin) in origin {
-            for (key, value) in site_origin {
-                new.push(Self {
+    pub fn new(id: i64, site: &'job Site, origin: &'job Original) -> Vec<Self> {
+        origin.iter()
+            .map(|(property, val)| {
+                Self {
                     book_id: id,
-                    site: site.as_str(),
-                    property: key,
-                    val: Some(value),
-                });
-            }
-        }
-        new
+                    property,
+                    site,
+                    val: Some(val)
+                }
+            })
+            .collect()
     }
-}
-
-pub fn find_book_only_by_isbn(conn: &mut PgConnection, isbn: &[&str]) -> Vec<BookEntity> {
-    schema::book::table
-        .filter(schema::book::isbn.eq_any(isbn))
-        .select(BookEntity::as_select())
-        .load::<BookEntity>(conn)
-        .unwrap()
-}
-
-pub fn insert_books(conn: &mut PgConnection, books: &[NewBookEntity]) -> Vec<BookEntity> {
-    diesel::insert_into(schema::book::table)
-        .values(books)
-        .get_results(conn)
-        .expect("Error inserting new books.")
-}
-
-pub fn insert_book_origins(conn: &mut PgConnection, origins: &[NewBookOriginDataEntity]) {
-    diesel::insert_into(schema::book_origin_data::table)
-        .values(origins)
-        .execute(conn)
-        .expect("Error inserting new book origin datas");
-}
-
-pub fn update_book(conn: &mut PgConnection, isbn: &str, book: &BookForm) -> usize {
-    diesel::update(schema::book::table)
-        .filter(schema::book::isbn.eq(isbn))
-        .set(book)
-        .execute(conn)
-        .unwrap()
-}
-
-pub fn delete_book_origin_data(conn: &mut PgConnection, id: i64, site: &str) -> usize {
-    diesel::delete(schema::book_origin_data::dsl::book_origin_data
-        .filter(
-            schema::book_origin_data::book_id.eq(id)
-                .and(schema::book_origin_data::site.eq(site))
-        ))
-        .into_boxed()
-        .execute(conn)
-        .unwrap()
 }
 
 #[derive(Queryable, Selectable, Identifiable, Debug, PartialEq)]

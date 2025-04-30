@@ -21,14 +21,13 @@ impl <R: BookRepository> NewBookOnlyWriter<R> {
 
 impl <R: BookRepository> Writer for NewBookOnlyWriter<R> {
     fn write(&self, books: &[&Book]) -> Vec<Book> {
-        let exists = get_target_books(&self.repository, &books);
+        let exists = get_target_books(&self.repository, books);
 
-        let new_books: Vec<&Book> = books.iter()
+        let filtered_books = books.iter()
             .filter(|b| !exists.contains_key(&b.isbn))
-            .copied()
-            .collect();
+            .cloned();
 
-        self.repository.new_books(&new_books)
+        self.repository.new_books(filtered_books, true)
     }
 }
 
@@ -52,27 +51,27 @@ impl <R: BookRepository> Writer for UpsertBookWriter<R> {
         let mut new_books: Vec<&Book> = vec![];
         let mut update_books: Vec<Book> = vec![];
 
-        books.iter().for_each(|book| {
+        for book in books {
             if let Some(mut ext) = exists.remove(&book.isbn) {
                 ext.merge(book);
                 update_books.push(ext);
             } else {
                 new_books.push(book);
             }
-        });
+        }
 
-        let new_books = self.repository.new_books(&new_books);
-        let update_books = self.repository.update_books(&update_books.iter().collect::<Vec<&Book>>());
+        self.repository.new_books(new_books, true);
+        self.repository.update_books(update_books.iter(), true);
 
-        new_books.into_iter().chain(update_books).collect()
+        self.repository.find_by_isbn(books.iter().map(|b| b.isbn.as_str()))
     }
 }
 
-fn get_target_books<R: BookRepository>(repository: &R, target: &[&Book]) -> HashMap<String, Book> {
-    let isbn = target.iter()
-        .map(|b| b.isbn.as_str());
-
-    repository.get_by_isbn(isbn).into_iter()
+fn get_target_books<R>(repository: &R, target: &[&Book]) -> HashMap<String, Book>
+where
+    R: BookRepository
+{
+    repository.find_by_isbn(target.iter().map(|b| b.isbn.as_str())).into_iter()
         .map(|b| (b.isbn.clone(), b))
         .collect::<HashMap<String, Book>>()
 }

@@ -1,7 +1,7 @@
+use crate::book::{Book, Node, Original, Publisher, Site};
 use std::collections::HashMap;
-use crate::book::{Book, Node, Publisher, Site};
 
-mod diesel;
+pub mod diesel;
 
 
 pub trait PublisherRepository {
@@ -9,13 +9,28 @@ pub trait PublisherRepository {
 }
 
 pub trait BookRepository {
-    fn get_by_isbn<'book, I>(&self, isbn: I) -> Vec<Book>
+
+    fn find_by_isbn<'book, I>(&self, isbn: I) -> Vec<Book>
     where
-        I: Iterator<Item = &'book str>;
+        I: Iterator<Item=&'book str>;
 
-    fn new_books(&self, books: &[&Book]) -> Vec<Book>;
+    fn find_origin_by_id<I>(&self, id: I) -> HashMap<u64, HashMap<Site, Original>>
+    where
+        I: Iterator<Item=u64>;
 
-    fn update_books(&self, books: &[&Book]) -> Vec<Book>;
+    fn new_books<'book, I>(&self, books: I, with_origin: bool) -> Vec<Book>
+    where
+        I: IntoIterator<Item=&'book Book>;
+
+    fn new_origin_data<'book, I>(&self, origins: I) -> usize
+    where
+        I: IntoIterator<Item=(u64, &'book HashMap<Site, Original>)>;
+
+    fn update_books<'book, I>(&self, books: I, with_origin: bool) -> usize
+    where
+        I: IntoIterator<Item=&'book Book>;
+
+    fn delete_origin_data(&self, id: u64, site: &Site) -> usize;
 }
 
 pub trait BookOriginFilterRepository {
