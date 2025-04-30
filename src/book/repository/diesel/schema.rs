@@ -45,7 +45,8 @@ diesel::table! {
         #[max_length = 32]
         property_name -> Nullable<Varchar>,
         #[max_length = 256]
-        regex -> Nullable<Varchar>,
+        #[sql_name = "regex"]
+        regex_val -> Nullable<Varchar>,
         parent_id -> Nullable<Int8>,
     }
 }

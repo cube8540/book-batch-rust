@@ -1,5 +1,6 @@
 use crate::book;
-use crate::book::{schema, Book, BookOriginFilter, Original, Site};
+use crate::book::repository::diesel::schema;
+use crate::book::{Book, BookOriginFilter, Original, Site};
 use chrono::{NaiveDate, NaiveDateTime};
 use diesel::{AsChangeset, Associations, BoolExpressionMethods, ExpressionMethods, Identifiable, Insertable, PgConnection, QueryDsl, Queryable, RunQueryDsl, Selectable, SelectableHelper};
 use std::collections::HashMap;
@@ -20,19 +21,6 @@ pub struct PublisherKeywordEntity {
     pub publisher_id: i64,
     pub site: String,
     pub keyword: String,
-}
-
-pub type PublisherWithKeyword = (PublisherEntity, Option<PublisherKeywordEntity>);
-
-pub fn find_publisher_all(conn: &mut PgConnection) -> Vec<PublisherWithKeyword> {
-    schema::publisher::table
-        .left_join(schema::publisher_keyword::table)
-        .select((
-            PublisherEntity::as_select(),
-            Option::<PublisherKeywordEntity>::as_select()
-        ))
-        .load(conn)
-        .unwrap()
 }
 
 /// 도서 모델
@@ -148,19 +136,6 @@ where 'job: 'a {
     }
 }
 
-pub type BookWithOriginData = (BookEntity, Option<BookOriginDataEntity>);
-pub fn find_book_by_isbn(conn: &mut PgConnection, isbn: &[&str]) -> Vec<BookWithOriginData> {
-    schema::book::table
-        .filter(schema::book::isbn.eq_any(isbn))
-        .left_join(schema::book_origin_data::table)
-        .select((
-            BookEntity::as_select(),
-            Option::<BookOriginDataEntity>::as_select()
-        ))
-        .load::<BookWithOriginData>(conn)
-        .unwrap()
-}
-
 pub fn find_book_only_by_isbn(conn: &mut PgConnection, isbn: &[&str]) -> Vec<BookEntity> {
     schema::book::table
         .filter(schema::book::isbn.eq_any(isbn))
@@ -197,6 +172,7 @@ pub fn delete_book_origin_data(conn: &mut PgConnection, id: i64, site: &str) -> 
             schema::book_origin_data::book_id.eq(id)
                 .and(schema::book_origin_data::site.eq(site))
         ))
+        .into_boxed()
         .execute(conn)
         .unwrap()
 }
@@ -210,7 +186,7 @@ pub struct BookOriginFilterEntity {
     pub is_root: bool,
     pub operator_type: Option<String>,
     pub property_name: Option<String>,
-    pub regex: Option<String>,
+    pub regex_val: Option<String>,
     pub parent_id: Option<i64>,
 }
 
@@ -228,16 +204,9 @@ impl BookOriginFilterEntity {
                 None
             },
             property_name: self.property_name.clone(),
-            regex: self.regex.clone(),
+            regex: self.regex_val.clone(),
             nodes: Vec::new(),
         };
         (filter, self.parent_id.map(|p| p as u64))
     }
-}
-
-pub fn find_book_origin_filter_all(conn: &mut PgConnection) -> Vec<BookOriginFilterEntity> {
-    schema::book_origin_filter::table
-        .select(BookOriginFilterEntity::as_select())
-        .load::<BookOriginFilterEntity>(conn)
-        .unwrap()
 }

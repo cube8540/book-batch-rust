@@ -1,5 +1,5 @@
-mod aladin;
-mod nlgo;
+pub mod aladin;
+pub mod nlgo;
 
 use crate::book::Book;
 use crate::procedure;

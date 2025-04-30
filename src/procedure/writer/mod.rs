@@ -69,10 +69,9 @@ impl <R: BookRepository> Writer for UpsertBookWriter<R> {
 
 fn get_target_books<R: BookRepository>(repository: &R, target: &[&Book]) -> HashMap<String, Book> {
     let isbn = target.iter()
-        .map(|b| b.isbn.as_str())
-        .into_iter();
+        .map(|b| b.isbn.as_str());
 
-    repository.get_book_only_by_isbn(isbn).into_iter()
+    repository.get_by_isbn(isbn).into_iter()
         .map(|b| (b.isbn.clone(), b))
         .collect::<HashMap<String, Book>>()
 }

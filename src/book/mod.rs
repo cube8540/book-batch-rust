@@ -3,8 +3,6 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-mod entity;
-mod schema;
 pub mod repository;
 
 /// 출판사 도메인
@@ -89,10 +87,10 @@ pub trait PublisherRepository {
 }
 
 pub trait BookRepository {
-    fn get_by_isbn(&self, isbn: &[&str]) -> Vec<Book>;
+    fn get_by_isbn<'book, I>(&self, isbn: I) -> Vec<Book>
+    where
+        I: Iterator<Item = &'book str>;
     
-    fn get_book_only_by_isbn(&self, isbn: &[&str]) -> Vec<Book>;
-
     fn new_books(&self, books: &[&Book]) -> Vec<Book>;
 
     fn update_books(&self, books: &[&Book]) -> Vec<Book>;
