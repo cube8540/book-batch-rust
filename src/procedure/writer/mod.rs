@@ -1,4 +1,5 @@
-use crate::book::{Book, BookRepository};
+use crate::book::repository::BookRepository;
+use crate::book::Book;
 use std::collections::HashMap;
 
 pub trait Writer {

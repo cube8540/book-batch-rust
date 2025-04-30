@@ -1,8 +1,7 @@
-use crate::book;
 use crate::book::repository::diesel::entity::{PublisherEntity, PublisherKeywordEntity};
 use crate::book::repository::diesel::{get_connection, schema, DbPool};
+use crate::book::repository::PublisherRepository;
 use crate::book::Publisher;
-use book::PublisherRepository;
 use diesel::{QueryDsl, RunQueryDsl, SelectableHelper};
 use std::collections::HashMap;
 

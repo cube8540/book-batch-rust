@@ -1,7 +1,8 @@
 use crate::book::repository::diesel::entity::BookOriginFilterEntity;
 use crate::book::repository::diesel::{get_connection, schema, DbPool};
-use crate::book::{BookOriginFilterRepository, Node, Site};
+use crate::book::{Node, Site};
 
+use crate::book::repository::BookOriginFilterRepository;
 use diesel::{QueryDsl, RunQueryDsl, SelectableHelper};
 use std::cell::RefCell;
 use std::collections::HashMap;

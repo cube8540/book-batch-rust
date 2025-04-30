@@ -1,4 +1,5 @@
-use crate::book::{Book, BookOriginFilterRepository, Site};
+use crate::book::{Book, Site};
+use crate::book::repository::BookOriginFilterRepository;
 
 pub trait Filter {
 

@@ -1,7 +1,7 @@
-use crate::book;
 use crate::book::repository::diesel::entity::{delete_book_origin_data, insert_book_origins, insert_books, update_book, BookEntity, BookForm, BookOriginDataEntity, NewBookEntity, NewBookOriginDataEntity};
 use crate::book::repository::diesel::{get_connection, schema, DbPool};
-use book::{Book, BookRepository};
+use crate::book::repository::BookRepository;
+use crate::book::Book;
 use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl, SelectableHelper};
 use std::collections::HashMap;
 
