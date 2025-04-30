@@ -1,12 +1,11 @@
 use crate::book;
 use crate::book::repository::diesel::schema;
-use crate::book::{Book, BookOriginFilter, Original, Site};
 use chrono::{NaiveDate, NaiveDateTime};
-use diesel::{AsChangeset, Associations, ExpressionMethods, Identifiable, Insertable, Queryable, Selectable};
+use diesel::{AsChangeset, Associations, Identifiable, Insertable, Queryable, Selectable};
 
 #[derive(Queryable, Selectable, Identifiable, Debug, PartialEq)]
 #[diesel(table_name = schema::publisher)]
-pub struct PublisherEntity {
+pub struct Publisher {
     pub id: i64,
     pub name: String,
 }
@@ -15,8 +14,8 @@ pub struct PublisherEntity {
 #[derive(Queryable, Selectable, Identifiable, Associations, Debug, PartialEq)]
 #[diesel(table_name = schema::publisher_keyword)]
 #[diesel(primary_key(publisher_id, site, keyword))]
-#[diesel(belongs_to(PublisherEntity, foreign_key = publisher_id))]
-pub struct PublisherKeywordEntity {
+#[diesel(belongs_to(Publisher, foreign_key = publisher_id))]
+pub struct PublisherKeyword {
     pub publisher_id: i64,
     pub site: String,
     pub keyword: String,
@@ -25,7 +24,7 @@ pub struct PublisherKeywordEntity {
 /// 도서 모델
 #[derive(Queryable, Selectable, Identifiable, Debug, PartialEq)]
 #[diesel(table_name = schema::book)]
-pub struct BookEntity {
+pub struct Book {
     pub id: i64,
     pub isbn: String,
     pub title: String,
@@ -36,9 +35,9 @@ pub struct BookEntity {
     pub modified_at: Option<NaiveDateTime>,
 }
 
-impl BookEntity {
-    pub fn to_domain(&self) -> Book {
-        Book {
+impl Book {
+    pub fn to_domain(&self) -> book::Book {
+        book::Book {
             id: self.id as u64,
             isbn: self.isbn.clone(),
             publisher_id: self.publisher_id as u64,
@@ -52,7 +51,7 @@ impl BookEntity {
 
 #[derive(Insertable, Debug, PartialEq)]
 #[diesel(table_name = schema::book)]
-pub struct NewBookEntity<'a> {
+pub struct NewBook<'a> {
     pub isbn: &'a str,
     pub title: &'a str,
     pub publisher_id: i64,
@@ -61,9 +60,9 @@ pub struct NewBookEntity<'a> {
     pub registered_at: NaiveDateTime,
 }
 
-impl <'a> NewBookEntity<'a> {
+impl <'a> NewBook<'a> {
 
-    pub fn new(book: &'a Book) -> Self {
+    pub fn new(book: &'a book::Book) -> Self {
         Self {
             isbn: &book.isbn,
             title: &book.title,
@@ -86,7 +85,7 @@ pub struct BookForm<'a> {
 
 impl<'a> BookForm<'a> {
 
-    pub fn new(book: &'a Book) -> Self {
+    pub fn new(book: &'a book::Book) -> Self {
         Self {
             title: &book.title,
             scheduled_pub_date: book.scheduled_pub_date.as_ref(),
@@ -99,8 +98,8 @@ impl<'a> BookForm<'a> {
 #[derive(Queryable, Selectable, Identifiable, Associations, Debug, PartialEq)]
 #[diesel(table_name = schema::book_origin_data)]
 #[diesel(primary_key(book_id, site, property))]
-#[diesel(belongs_to(BookEntity, foreign_key = book_id))]
-pub struct BookOriginDataEntity {
+#[diesel(belongs_to(Book, foreign_key = book_id))]
+pub struct BookOriginData {
     pub book_id: i64,
     pub site: String,
     pub property: String,
@@ -119,7 +118,7 @@ pub struct NewBookOriginDataEntity<'a> {
 impl <'job, 'a> NewBookOriginDataEntity<'a>
 where 'job: 'a {
 
-    pub fn new(id: i64, site: &'job Site, origin: &'job Original) -> Vec<Self> {
+    pub fn new(id: i64, site: &'job book::Site, origin: &'job book::Original) -> Vec<Self> {
         origin.iter()
             .map(|(property, val)| {
                 Self {
@@ -135,7 +134,7 @@ where 'job: 'a {
 
 #[derive(Queryable, Selectable, Identifiable, Debug, PartialEq)]
 #[diesel(table_name = schema::book_origin_filter)]
-pub struct BookOriginFilterEntity {
+pub struct BookOriginFilter {
     pub id: i64,
     pub name: String,
     pub site: String,
@@ -146,10 +145,10 @@ pub struct BookOriginFilterEntity {
     pub parent_id: Option<i64>,
 }
 
-impl BookOriginFilterEntity {
+impl BookOriginFilter {
 
-    pub fn to_domain(self) -> (BookOriginFilter, Option<u64>) {
-        let filter = BookOriginFilter {
+    pub fn to_domain(self) -> (book::BookOriginFilter, Option<u64>) {
+        let filter = book::BookOriginFilter {
             id: self.id as u64,
             name: self.name.clone(),
             site: self.site.clone(),

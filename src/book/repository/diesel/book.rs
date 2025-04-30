@@ -1,7 +1,6 @@
-use crate::book::repository::diesel::entity::{BookEntity, BookForm, BookOriginDataEntity, NewBookEntity, NewBookOriginDataEntity};
-use crate::book::repository::diesel::{get_connection, schema, DbPool};
+use crate::book;
+use crate::book::repository::diesel::{entity, get_connection, schema, DbPool};
 use crate::book::repository::BookRepository;
-use crate::book::{Book, Original, Site};
 use diesel::{BoolExpressionMethods, ExpressionMethods, QueryDsl, RunQueryDsl, SelectableHelper};
 use std::collections::HashMap;
 
@@ -18,14 +17,14 @@ impl Repository {
 }
 
 impl BookRepository for Repository {
-    fn find_by_isbn<'book, I>(&self, isbn: I) -> Vec<Book>
+    fn find_by_isbn<'book, I>(&self, isbn: I) -> Vec<book::Book>
     where
         I: Iterator<Item=&'book str>
     {
-        let entities: Vec<BookEntity> = schema::book::table
+        let entities: Vec<entity::Book> = schema::book::table
             .filter(schema::book::isbn.eq_any(isbn))
             .left_join(schema::book_origin_data::table)
-            .select(BookEntity::as_select())
+            .select(entity::Book::as_select())
             .into_boxed()
             .load(&mut get_connection(&self.pool))
             .unwrap();
@@ -35,16 +34,16 @@ impl BookRepository for Repository {
             .collect()
     }
 
-    fn find_origin_by_id<I>(&self, id: I) -> HashMap<u64, HashMap<Site, Original>>
+    fn find_origin_by_id<I>(&self, id: I) -> HashMap<u64, HashMap<book::Site, book::Original>>
     where
         I: Iterator<Item=u64>
     {
-        let mut result: HashMap<u64, HashMap<Site, Original>> = HashMap::new();
+        let mut result: HashMap<u64, HashMap<book::Site, book::Original>> = HashMap::new();
 
         let id = id.map(|id| id.clone() as i64);
-        let origins: Vec<BookOriginDataEntity> = schema::book_origin_data::table
+        let origins: Vec<entity::BookOriginData> = schema::book_origin_data::table
             .filter(schema::book_origin_data::book_id.eq_any(id))
-            .select(BookOriginDataEntity::as_select())
+            .select(entity::BookOriginData::as_select())
             .load(&mut get_connection(&self.pool))
             .unwrap();
 
@@ -60,24 +59,24 @@ impl BookRepository for Repository {
         result
     }
 
-    fn new_books<'book, I>(&self, books: I, with_origin: bool) -> Vec<Book>
+    fn new_books<'book, I>(&self, books: I, with_origin: bool) -> Vec<book::Book>
     where
-        I: IntoIterator<Item=&'book Book>
+        I: IntoIterator<Item=&'book book::Book>
     {
-        let mut mapping_books: HashMap<String, &Book> = HashMap::new();
-        let mut new_books: Vec<NewBookEntity> = vec![];
+        let mut mapping_books: HashMap<String, &book::Book> = HashMap::new();
+        let mut new_books: Vec<entity::NewBook> = vec![];
 
         for book in books {
             mapping_books.insert(book.isbn.clone(), book);
-            new_books.push(NewBookEntity::new(book));
+            new_books.push(entity::NewBook::new(book));
         }
 
         let mut connection = get_connection(&self.pool);
-        let registered_books: Vec<Book> = new_books.chunks(MAX_BUFFER_SIZE).into_iter()
+        let registered_books: Vec<book::Book> = new_books.chunks(MAX_BUFFER_SIZE).into_iter()
             .flat_map(|books| {
                 diesel::insert_into(schema::book::table)
                     .values(books)
-                    .get_results::<BookEntity>(&mut connection)
+                    .get_results::<entity::Book>(&mut connection)
                     .expect("Error inserting new books.")
             })
             .map(|result| result.to_domain())
@@ -95,14 +94,14 @@ impl BookRepository for Repository {
 
     fn new_origin_data<'book, I>(&self, origins: I) -> usize
     where
-        I: IntoIterator<Item=(u64, &'book HashMap<Site, Original>)>
+        I: IntoIterator<Item=(u64, &'book HashMap<book::Site, book::Original>)>
     {
-        let new_origins: Vec<NewBookOriginDataEntity> = origins
+        let new_origins: Vec<entity::NewBookOriginDataEntity> = origins
             .into_iter()
             .flat_map(|(id, original)| {
                 original.iter()
                     .flat_map(move |(key, val)| {
-                        NewBookOriginDataEntity::new(id as i64, key, val)
+                        entity::NewBookOriginDataEntity::new(id as i64, key, val)
                     })
             })
             .collect();
@@ -119,12 +118,12 @@ impl BookRepository for Repository {
 
     fn update_books<'book, I>(&self, books: I, with_origin: bool) -> usize
     where
-        I: IntoIterator<Item=&'book Book>
+        I: IntoIterator<Item=&'book book::Book>
     {
         let mut connection = get_connection(&self.pool);
         books.into_iter()
             .map(|book| {
-                let form = BookForm::new(book);
+                let form = entity::BookForm::new(book);
                 let mut count = diesel::update(schema::book::table)
                     .filter(schema::book::id.eq(book.id as i64))
                     .set(form)
@@ -141,7 +140,7 @@ impl BookRepository for Repository {
             .sum()
     }
 
-    fn delete_origin_data(&self, id: u64, site: &Site) -> usize {
+    fn delete_origin_data(&self, id: u64, site: &book::Site) -> usize {
         diesel::delete(schema::book_origin_data::dsl::book_origin_data
             .filter(
                 schema::book_origin_data::book_id.eq(id as i64)

@@ -1,7 +1,6 @@
-use crate::book::repository::diesel::entity::BookOriginFilterEntity;
-use crate::book::repository::diesel::{get_connection, schema, DbPool};
-use crate::book::{Node, Site};
+use crate::book::repository::diesel::{entity, get_connection, schema, DbPool};
 
+use crate::book;
 use crate::book::repository::BookOriginFilterRepository;
 use diesel::{QueryDsl, RunQueryDsl, SelectableHelper};
 use std::cell::RefCell;
@@ -21,14 +20,14 @@ impl Repository {
 }
 
 impl BookOriginFilterRepository for Repository {
-    fn get_root_filters(&self) -> HashMap<Site, Node> {
+    fn get_root_filters(&self) -> HashMap<book::Site, book::Node> {
         let mut result = HashMap::new();
 
         let filter_map = RefCell::new(HashMap::new());
         let mut ref_mut = filter_map.borrow_mut();
 
-        let filters: Vec<BookOriginFilterEntity> = schema::book_origin_filter::table
-            .select(BookOriginFilterEntity::as_select())
+        let filters: Vec<entity::BookOriginFilter> = schema::book_origin_filter::table
+            .select(entity::BookOriginFilter::as_select())
             .load(&mut get_connection(&self.pool))
             .unwrap();
 
@@ -37,7 +36,7 @@ impl BookOriginFilterRepository for Repository {
             ref_mut.insert(filter.id, (Rc::new(RefCell::new(filter)), parent_id));
         });
 
-        let items: Vec<(Node, Option<ParentId>)> = ref_mut.iter_mut()
+        let items: Vec<(book::Node, Option<ParentId>)> = ref_mut.iter_mut()
             .map(|(_, (filter, parent_id))| (filter.clone(), *parent_id))
             .collect();
 
