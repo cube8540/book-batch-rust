@@ -30,13 +30,6 @@ impl Publisher {
             .or_insert_with(Vec::new)
             .push(keyword);
     }
-
-    pub fn keywords(&self, site: Site) -> Vec<String> {
-        self.keywords
-            .get(&site)
-            .unwrap_or(&Vec::new())
-            .to_vec()
-    }
 }
 
 /// 도서 정보를 가지고 온 사이트

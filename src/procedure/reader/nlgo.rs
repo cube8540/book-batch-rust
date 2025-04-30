@@ -1,8 +1,9 @@
+use chrono::NaiveDate;
 use crate::book::Book;
-use crate::procedure::{read_by_publisher, Parameter, Reader};
+use crate::procedure::Parameter;
+use crate::procedure::reader::{FromPublisher, Reader};
 use crate::provider;
 use crate::provider::api::Client;
-use chrono::NaiveDate;
 
 pub struct NlgoReader {
     client: provider::api::nlgo::Client,
@@ -11,15 +12,13 @@ pub struct NlgoReader {
     to: NaiveDate,
 }
 
-impl NlgoReader {
-    pub fn new(
-        client: provider::api::nlgo::Client,
-        from: NaiveDate,
-        to: NaiveDate,
-    ) -> Self {
-        Self { client, from, to }
+impl Reader for NlgoReader {
+    fn read_books(&self, parameter: &Parameter) -> Vec<Book> {
+        <Self as FromPublisher>::read_books(self, parameter)
     }
+}
 
+impl FromPublisher for NlgoReader {
     fn read(&self, keyword: &str) -> Vec<Book> {
         let mut v = Vec::new();
         let mut page = 1;
@@ -40,15 +39,11 @@ impl NlgoReader {
             }
         }
     }
+
 }
 
-impl Reader for NlgoReader {
-    fn get_books(&self, parameter: &Parameter) -> Vec<Book> {
-        let publisher = parameter.publisher.as_ref().unwrap();
-        read_by_publisher(
-            provider::api::nlgo::SITE.to_owned(),
-            publisher,
-            |keyword| self.read(keyword)
-        )
+impl NlgoReader {
+    pub fn new(client: provider::api::nlgo::Client, from: NaiveDate, to: NaiveDate) -> Self {
+        Self { client, from, to }
     }
 }

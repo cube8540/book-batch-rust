@@ -1,5 +1,6 @@
 use crate::book::Book;
-use crate::procedure::{read_by_publisher, Parameter, Reader};
+use crate::procedure::reader::{FromPublisher, Reader};
+use crate::procedure::Parameter;
 use crate::provider;
 use crate::provider::api::Client;
 
@@ -10,13 +11,13 @@ pub struct AladinReader {
     client: provider::api::aladin::Client,
 }
 
-impl AladinReader {
-    pub fn new(
-        client: provider::api::aladin::Client,
-    ) -> Self {
-        Self { client }
+impl Reader for AladinReader {
+    fn read_books(&self, parameter: &Parameter) -> Vec<Book> {
+        <Self as FromPublisher>::read_books(self, parameter)
     }
+}
 
+impl FromPublisher for AladinReader {
     fn read(&self, keyword: &str) -> Vec<Book> {
         let mut v = Vec::new();
         let mut total_fetched = 0;
@@ -45,13 +46,8 @@ impl AladinReader {
 
 }
 
-impl Reader for AladinReader {
-    fn get_books(&self, parameter: &Parameter) -> Vec<Book> {
-        let publisher = parameter.publisher.as_ref().unwrap();
-        read_by_publisher(
-            provider::api::aladin::SITE.to_owned(),
-            publisher,
-            |keyword| self.read(keyword)
-        )
+impl AladinReader {
+    pub fn new(client: provider::api::aladin::Client) -> Self {
+        Self { client }
     }
 }
