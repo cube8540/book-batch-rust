@@ -125,7 +125,7 @@ impl BookRepository for Repository {
                 }
             });
             let new_origin_data = book.origin_data.iter()
-                .filter(|(site, _)| !delete_successes.contains(site))
+                .filter(|(site, _)| delete_successes.contains(site))
                 .map(|(key, value)| (key.clone(), value.clone()))
                 .collect::<HashMap<book::Site, book::Original>>();
 
