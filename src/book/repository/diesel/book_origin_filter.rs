@@ -11,14 +11,11 @@ pub struct Repository {
     pool: DbPool
 }
 
-type ParentId = u64;
-impl Repository {
-
-    pub fn new(pool: DbPool) -> Self {
-        Self { pool }
-    }
+pub fn new(pool: DbPool) -> Repository {
+    Repository { pool }
 }
 
+type ParentId = u64;
 impl BookOriginFilterRepository for Repository {
     fn get_root_filters(&self) -> HashMap<book::Site, book::Node> {
         let mut result = HashMap::new();

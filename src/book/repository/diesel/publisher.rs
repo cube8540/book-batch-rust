@@ -8,10 +8,8 @@ pub struct Repository {
     pool: DbPool
 }
 
-impl Repository {
-    pub fn new (pool: DbPool) -> Self {
-        Self { pool }
-    }
+pub fn new(pool: DbPool) -> Repository {
+    Repository { pool }
 }
 
 impl PublisherRepository for Repository {

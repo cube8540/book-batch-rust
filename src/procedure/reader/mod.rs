@@ -1,7 +1,7 @@
 pub mod aladin;
 pub mod nlgo;
 
-use crate::book::Book;
+use crate::book::{Book, Site};
 use crate::procedure;
 
 use procedure::Parameter;
@@ -14,7 +14,7 @@ pub trait FromPublisher: Reader {
 
     fn read_books(&self, parameter: &Parameter) -> Vec<Book> {
         let publisher = parameter.publisher.unwrap();
-        if let Some(keywords) = publisher.keywords.get(&parameter.site) {
+        if let Some(keywords) = publisher.keywords.get(&self.site()) {
             keywords.iter()
                 .flat_map(|keyword| {
                     let mut books = self.read(keyword);
@@ -28,4 +28,6 @@ pub trait FromPublisher: Reader {
     }
 
     fn read(&self, keyword: &str) -> Vec<Book>;
+
+    fn site(&self) -> Site;
 }

@@ -65,16 +65,15 @@ pub struct OriginDataFilter<R>
 where
     R: BookOriginFilterRepository
 {
-    repository: R,
-    site: Site,
+    repository: R
 }
 
 impl<R> OriginDataFilter<R>
 where
     R: BookOriginFilterRepository
 {
-    pub fn new(repository: R, site: Site) -> OriginDataFilter<R> {
-        Self { repository, site }
+    pub fn new(repository: R) -> OriginDataFilter<R> {
+        Self { repository }
     }
 }
 
@@ -87,16 +86,18 @@ where
         'job: 'input
     {
         let filters = self.repository.get_root_filters();
-
-        if let Some(filter) = filters.get(&self.site) {
-            books.iter()
-                .filter(|book| {
-                    book.origin_data.get(&self.site).map_or(false, |o| filter.borrow().validate(o))
-                })
-                .cloned()
-                .collect()
-        } else {
-            books.to_vec()
-        }
+        books.iter()
+            .filter(|book| {
+                book.origin_data.iter()
+                    .all(|(site, origin)| {
+                        if let Some(filter) = filters.get(site) {
+                            filter.borrow().validate(origin)
+                        } else {
+                            true
+                        }
+                    })
+            })
+            .cloned()
+            .collect()
     }
 }

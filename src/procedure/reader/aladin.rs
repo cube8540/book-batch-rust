@@ -1,14 +1,19 @@
-use crate::book::Book;
+use crate::book::{Book, Site};
 use crate::procedure::reader::{FromPublisher, Reader};
 use crate::procedure::Parameter;
 use crate::provider;
 use crate::provider::api::Client;
+use provider::api::aladin;
 
 const PAGE_SIZE: i32 = 50;
 const MAX_RESULTS: usize = 200; // 알라딘 API 최대 조회 제한
 
 pub struct AladinReader {
-    client: provider::api::aladin::Client,
+    client: aladin::Client,
+}
+
+pub fn new(client: aladin::Client) -> AladinReader {
+    AladinReader { client }
 }
 
 impl Reader for AladinReader {
@@ -44,10 +49,7 @@ impl FromPublisher for AladinReader {
         }
     }
 
-}
-
-impl AladinReader {
-    pub fn new(client: provider::api::aladin::Client) -> Self {
-        Self { client }
+    fn site(&self) -> Site {
+        aladin::SITE.to_owned()
     }
 }

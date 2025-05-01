@@ -10,10 +10,8 @@ pub struct Repository {
     pool: DbPool
 }
 
-impl Repository {
-    pub fn new(pool: DbPool) -> Self {
-        Self { pool }
-    }
+pub fn new(pool: DbPool) -> Repository {
+    Repository { pool }
 }
 
 impl BookRepository for Repository {
@@ -23,7 +21,6 @@ impl BookRepository for Repository {
     {
         let entities: Vec<entity::Book> = schema::book::table
             .filter(schema::book::isbn.eq_any(isbn))
-            .left_join(schema::book_origin_data::table)
             .select(entity::Book::as_select())
             .into_boxed()
             .load(&mut get_connection(&self.pool))

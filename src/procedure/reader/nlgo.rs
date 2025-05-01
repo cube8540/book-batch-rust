@@ -1,15 +1,20 @@
-use chrono::NaiveDate;
-use crate::book::Book;
-use crate::procedure::Parameter;
+use crate::book::{Book, Site};
 use crate::procedure::reader::{FromPublisher, Reader};
+use crate::procedure::Parameter;
 use crate::provider;
 use crate::provider::api::Client;
+use chrono::NaiveDate;
+use provider::api::nlgo;
 
 pub struct NlgoReader {
-    client: provider::api::nlgo::Client,
+    client: nlgo::Client,
 
     from: NaiveDate,
     to: NaiveDate,
+}
+
+pub fn new(client: nlgo::Client, from: NaiveDate, to: NaiveDate) -> NlgoReader {
+    NlgoReader { client, from, to }
 }
 
 impl Reader for NlgoReader {
@@ -40,10 +45,7 @@ impl FromPublisher for NlgoReader {
         }
     }
 
-}
-
-impl NlgoReader {
-    pub fn new(client: provider::api::nlgo::Client, from: NaiveDate, to: NaiveDate) -> Self {
-        Self { client, from, to }
+    fn site(&self) -> Site {
+        nlgo::SITE.to_owned()
     }
 }
