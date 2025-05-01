@@ -1,10 +1,9 @@
 use crate::book;
 use crate::book::repository::diesel::{entity, get_connection, schema, sql_debugging, DbPool};
-use crate::book::repository::BookRepository;
+use crate::book::repository::{BookRepository, SQLError};
 use diesel::{BoolExpressionMethods, ExpressionMethods, QueryDsl, RunQueryDsl, SelectableHelper};
 use std::collections::HashMap;
-
-const MAX_BUFFER_SIZE: usize = 100;
+use tracing::error;
 
 pub struct Repository {
     pool: DbPool
@@ -56,7 +55,7 @@ impl BookRepository for Repository {
         result
     }
 
-    fn new_books<'book, I>(&self, books: I, with_origin: bool) -> Vec<book::Book>
+    fn new_books<'book, I>(&self, books: I, with_origin: bool) -> Result<Vec<book::Book>, SQLError>
     where
         I: IntoIterator<Item=&'book book::Book>
     {
@@ -69,32 +68,32 @@ impl BookRepository for Repository {
         }
 
         let mut connection = get_connection(&self.pool);
-        let registered_books: Vec<book::Book> = new_books.chunks(MAX_BUFFER_SIZE).into_iter()
-            .flat_map(|books| {
-                sql_debugging(diesel::insert_into(schema::book::table)
-                    .values(books))
-                    .get_results::<entity::Book>(&mut connection)
-                    .expect("Error inserting new books.")
-            })
-            .map(|result| result.to_domain())
-            .collect();
+        let registered_books: Result<Vec<book::Book>, SQLError> = sql_debugging(diesel::insert_into(schema::book::table)
+            .values(new_books))
+            .get_results::<entity::Book>(&mut connection)
+            .map(|entities| entities.into_iter().map(|e| e.to_domain()).collect())
+            .map_err(|err| SQLError::QueryExecuteError(err.to_string()));
 
-        if with_origin {
-            let new_origins = registered_books
-                .iter()
-                .filter_map(|b| mapping_books.get(&b.isbn).map(|b| (b.id, &b.origin_data)));
-            self.new_origin_data(new_origins);
+        if let Ok(registered_books) = registered_books.as_ref() {
+            if with_origin {
+                let new_origins = registered_books.iter()
+                    .filter_map(|registered_book| {
+                        mapping_books.get(&registered_book.isbn)
+                            .map(|b| (registered_book.id, &b.origin_data))
+                    });
+                if let Err(err) = self.new_origin_data(new_origins) {
+                    return Err(SQLError::QueryExecuteError(format!("도서 원본 데이터 저장중 에러가 발생 했습니다. 원본 데이터를 제외한 도서들은 모두 정상적으로 저장 되었습니다. => {:?}", err)));
+                }
+            }
         }
         registered_books
-
     }
 
-    fn new_origin_data<'book, I>(&self, origins: I) -> usize
+    fn new_origin_data<'book, I>(&self, origins: I) -> Result<usize, SQLError>
     where
         I: IntoIterator<Item=(u64, &'book HashMap<book::Site, book::Original>)>
     {
-        let new_origins: Vec<entity::NewBookOriginDataEntity> = origins
-            .into_iter()
+        let new_origins: Vec<entity::NewBookOriginDataEntity> = origins.into_iter()
             .flat_map(|(id, original)| {
                 original.iter()
                     .flat_map(move |(key, val)| {
@@ -103,42 +102,43 @@ impl BookRepository for Repository {
             })
             .collect();
 
-        let mut connection = get_connection(&self.pool);
-        new_origins.chunks(MAX_BUFFER_SIZE).into_iter()
-            .flat_map(|origins| {
-                sql_debugging(diesel::insert_into(schema::book_origin_data::table)
-                    .values(origins))
-                    .execute(&mut connection)
-            })
-            .sum()
+        sql_debugging(diesel::insert_into(schema::book_origin_data::table)
+            .values(new_origins))
+            .execute(&mut get_connection(&self.pool))
+            .map_err(|err| SQLError::QueryExecuteError(err.to_string()))
     }
 
-    fn update_books<'book, I>(&self, books: I, with_origin: bool) -> usize
-    where
-        I: IntoIterator<Item=&'book book::Book>
-    {
-        let mut connection = get_connection(&self.pool);
-        books.into_iter()
-            .map(|book| {
-                let form = entity::BookForm::new(book);
-                
-                let mut updated_count = sql_debugging(diesel::update(schema::book::table)
-                    .filter(schema::book::id.eq(book.id as i64))
-                    .set(form))
-                    .execute(&mut connection)
-                    .unwrap();
-                if updated_count > 0 && with_origin {
-                    book.origin_data.iter().for_each(|(site, _)| {
-                        self.delete_origin_data(book.id.clone(), site);
-                    });
-                    updated_count += self.new_origin_data([(book.id, &book.origin_data)]);
+    fn update_book(&self, book: &book::Book, with_origin: bool) -> Result<usize, SQLError> {
+        let mut updated_count = sql_debugging(diesel::update(schema::book::table)
+            .filter(schema::book::id.eq(book.id as i64))
+            .set(entity::BookForm::new(book)))
+            .execute(&mut get_connection(&self.pool))
+            .map_err(|err| SQLError::QueryExecuteError(err.to_string()))?;
+
+        if updated_count > 0 && with_origin {
+            let mut delete_successes: Vec<&book::Site> = vec![];
+            book.origin_data.iter().for_each(|(site, _)| {
+                if self.delete_origin_data(book.id, site).is_ok() {
+                    delete_successes.push(site);
+                } else {
+                    error!("원본 데이터 삭제 중 에러가 발생 하였습니다. => {:?} (ISBN: {})", site, book.isbn);
                 }
-                updated_count
-            })
-            .sum()
+            });
+            let new_origin_data = book.origin_data.iter()
+                .filter(|(site, _)| !delete_successes.contains(site))
+                .map(|(key, value)| (key.clone(), value.clone()))
+                .collect::<HashMap<book::Site, book::Original>>();
+
+            updated_count += self.new_origin_data([(book.id, &new_origin_data)])
+                .unwrap_or_else(|err| {
+                    error!("원본 데이터 저장 중 에러가 발생 하였습니다. 원본을 제외한 도서 정보는 정상적으로 저장 되었습니다. => {:?} (ISBN: {})", err, book.isbn);
+                    0
+                });
+        }
+        Ok(updated_count)
     }
 
-    fn delete_origin_data(&self, id: u64, site: &book::Site) -> usize {
+    fn delete_origin_data(&self, id: u64, site: &book::Site) -> Result<usize, SQLError> {
         sql_debugging(diesel::delete(schema::book_origin_data::dsl::book_origin_data
             .filter(
                 schema::book_origin_data::book_id.eq(id as i64)
@@ -146,6 +146,6 @@ impl BookRepository for Repository {
             )))
             .into_boxed()
             .execute(&mut get_connection(&self.pool))
-            .unwrap()
+            .map_err(|err| SQLError::QueryExecuteError(err.to_string()))
     }
 }

@@ -1,6 +1,9 @@
 use crate::book::repository::BookRepository;
 use crate::book::Book;
 use std::collections::HashMap;
+use tracing::error;
+
+const WRITE_SIZE: usize = 100;
 
 pub trait Writer {
     fn write(&self, books: &[&Book]) -> Vec<Book>;
@@ -23,11 +26,24 @@ impl <R: BookRepository> Writer for NewBookOnlyWriter<R> {
     fn write(&self, books: &[&Book]) -> Vec<Book> {
         let exists = get_target_books(&self.repository, books);
 
-        let filtered_books = books.iter()
+        let filtered_books: Vec<&Book> = books.iter()
             .filter(|b| !exists.contains_key(&b.isbn))
-            .cloned();
+            .cloned()
+            .collect();
 
-        self.repository.new_books(filtered_books, true)
+        let chunks = filtered_books.chunks(WRITE_SIZE);
+        chunks.into_iter()
+            .flat_map(|books| {
+                let result = self.repository.new_books(books.iter().cloned(), true);
+                if let Ok(books) = result {
+                    books
+                } else {
+                    let isbn: Vec<&str> = books.iter().map(|b| b.isbn.as_str()).collect();
+                    error!("도서 저장 중 에러가 발생 했습니다 {:?} (ISBN => {:?})", result.unwrap_err(), isbn);
+                    vec![]
+                }
+            })
+            .collect()
     }
 }
 
@@ -60,8 +76,17 @@ impl <R: BookRepository> Writer for UpsertBookWriter<R> {
             }
         }
 
-        self.repository.new_books(new_books, true);
-        self.repository.update_books(update_books.iter(), true);
+        new_books.chunks(WRITE_SIZE).into_iter().for_each(|books| {
+            if let Err(err) = self.repository.new_books(books.iter().cloned(), true) {
+                let isbn: Vec<&str> = books.iter().map(|b| b.isbn.as_str()).collect();
+                error!("도서 저장 중 에러가 발생 했습니다 {:?} (ISBN => {:?})", err, isbn);
+            }
+        });
+        update_books.iter().for_each(|book| {
+            if let Err(err) = self.repository.update_book(book, true) {
+                error!("도서 저장 중 에러가 발생 했습니다. {:?} (ISBN => {})", err, book.isbn);
+            }
+        });
 
         self.repository.find_by_isbn(books.iter().map(|b| b.isbn.as_str()))
     }
