@@ -1,5 +1,6 @@
 use serde::Deserialize;
 use time::macros::format_description;
+use tracing_appender::non_blocking::WorkerGuard;
 use tracing_appender::rolling;
 use tracing_subscriber::fmt::time::LocalTime;
 use tracing_subscriber::fmt::writer::MakeWriterExt;
@@ -26,10 +27,12 @@ pub struct Config {
     rotation: Option<String>
 }
 
+static mut GUARD: Option<WorkerGuard> = None;
+
 pub fn set_global_logging_config(c: &Config) {
     let mut file_appender = rolling::RollingFileAppender::builder()
         .filename_prefix(c.name.clone())
-        .filename_suffix(".log");
+        .filename_suffix("log");
 
     if let Some(rotation) = &c.rotation {
         file_appender = file_appender.rotation(parse_rotation(rotation.as_str()));
@@ -43,8 +46,10 @@ pub fn set_global_logging_config(c: &Config) {
 
     let file_appender = file_appender.build(c.dir.clone()).unwrap();
 
-    let (non_blocking, _) = tracing_appender::non_blocking(file_appender);
+    let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
     let writer = std::io::stdout.and(non_blocking);
+
+    unsafe { GUARD = Some(_guard); }
 
     let mut subscriber = tracing_subscriber::fmt()
         .json()
@@ -70,7 +75,7 @@ fn parse_rotation(s: &str) -> rolling::Rotation {
         "HOURLY" => rolling::Rotation::HOURLY,
         "MINUTELY" => rolling::Rotation::MINUTELY,
         "NAVER" => rolling::Rotation::NEVER,
-        _ => panic!("로깅 파일 로테이션(rotation)은 \"{}\", \"{}\", \"{}\", \"{}\"만 가븡 합니다.", "DALY", "HOURLY", "MINUTELY", "NEVER")
+        _ => panic!("로깅 파일 로테이션(rotation)은 \"{}\", \"{}\", \"{}\", \"{}\"만 가능 합니다.", "DALY", "HOURLY", "MINUTELY", "NEVER")
     }
 }
 
