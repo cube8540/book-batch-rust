@@ -1,5 +1,5 @@
 use crate::book;
-use crate::book::repository::diesel::{entity, get_connection, schema, DbPool};
+use crate::book::repository::diesel::{entity, get_connection, schema, sql_debugging, DbPool};
 use crate::book::repository::PublisherRepository;
 use diesel::{QueryDsl, RunQueryDsl, SelectableHelper};
 use std::collections::HashMap;
@@ -14,12 +14,12 @@ pub fn new(pool: DbPool) -> Repository {
 
 impl PublisherRepository for Repository {
     fn get_all(&self) -> Vec<book::Publisher> {
-        let entities = schema::publisher::table
+        let entities = sql_debugging(schema::publisher::table
             .left_join(schema::publisher_keyword::table)
             .select((
                 entity::Publisher::as_select(),
                 Option::<entity::PublisherKeyword>::as_select()
-            ))
+            )))
             .into_boxed()
             .load(&mut get_connection(&self.pool))
             .unwrap();

@@ -1,4 +1,4 @@
-use crate::book::repository::diesel::{entity, get_connection, schema, DbPool};
+use crate::book::repository::diesel::{entity, get_connection, schema, sql_debugging, DbPool};
 
 use crate::book;
 use crate::book::repository::BookOriginFilterRepository;
@@ -23,8 +23,8 @@ impl BookOriginFilterRepository for Repository {
         let filter_map = RefCell::new(HashMap::new());
         let mut ref_mut = filter_map.borrow_mut();
 
-        let filters: Vec<entity::BookOriginFilter> = schema::book_origin_filter::table
-            .select(entity::BookOriginFilter::as_select())
+        let filters: Vec<entity::BookOriginFilter> = sql_debugging(schema::book_origin_filter::table
+            .select(entity::BookOriginFilter::as_select()))
             .load(&mut get_connection(&self.pool))
             .unwrap();
 

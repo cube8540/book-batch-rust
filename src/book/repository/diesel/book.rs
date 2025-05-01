@@ -1,5 +1,5 @@
 use crate::book;
-use crate::book::repository::diesel::{entity, get_connection, schema, DbPool};
+use crate::book::repository::diesel::{entity, get_connection, schema, sql_debugging, DbPool};
 use crate::book::repository::BookRepository;
 use diesel::{BoolExpressionMethods, ExpressionMethods, QueryDsl, RunQueryDsl, SelectableHelper};
 use std::collections::HashMap;
@@ -19,9 +19,9 @@ impl BookRepository for Repository {
     where
         I: Iterator<Item=&'book str>
     {
-        let entities: Vec<entity::Book> = schema::book::table
+        let entities: Vec<entity::Book> = sql_debugging(schema::book::table
             .filter(schema::book::isbn.eq_any(isbn))
-            .select(entity::Book::as_select())
+            .select(entity::Book::as_select()))
             .into_boxed()
             .load(&mut get_connection(&self.pool))
             .unwrap();
@@ -36,11 +36,11 @@ impl BookRepository for Repository {
         I: Iterator<Item=u64>
     {
         let mut result: HashMap<u64, HashMap<book::Site, book::Original>> = HashMap::new();
-
         let id = id.map(|id| id.clone() as i64);
-        let origins: Vec<entity::BookOriginData> = schema::book_origin_data::table
+
+        let origins: Vec<entity::BookOriginData> = sql_debugging(schema::book_origin_data::table
             .filter(schema::book_origin_data::book_id.eq_any(id))
-            .select(entity::BookOriginData::as_select())
+            .select(entity::BookOriginData::as_select()))
             .load(&mut get_connection(&self.pool))
             .unwrap();
 
@@ -71,8 +71,8 @@ impl BookRepository for Repository {
         let mut connection = get_connection(&self.pool);
         let registered_books: Vec<book::Book> = new_books.chunks(MAX_BUFFER_SIZE).into_iter()
             .flat_map(|books| {
-                diesel::insert_into(schema::book::table)
-                    .values(books)
+                sql_debugging(diesel::insert_into(schema::book::table)
+                    .values(books))
                     .get_results::<entity::Book>(&mut connection)
                     .expect("Error inserting new books.")
             })
@@ -106,8 +106,8 @@ impl BookRepository for Repository {
         let mut connection = get_connection(&self.pool);
         new_origins.chunks(MAX_BUFFER_SIZE).into_iter()
             .flat_map(|origins| {
-                diesel::insert_into(schema::book_origin_data::table)
-                    .values(origins)
+                sql_debugging(diesel::insert_into(schema::book_origin_data::table)
+                    .values(origins))
                     .execute(&mut connection)
             })
             .sum()
@@ -121,28 +121,29 @@ impl BookRepository for Repository {
         books.into_iter()
             .map(|book| {
                 let form = entity::BookForm::new(book);
-                let mut count = diesel::update(schema::book::table)
+                
+                let mut updated_count = sql_debugging(diesel::update(schema::book::table)
                     .filter(schema::book::id.eq(book.id as i64))
-                    .set(form)
+                    .set(form))
                     .execute(&mut connection)
                     .unwrap();
-                if count > 0 && with_origin {
+                if updated_count > 0 && with_origin {
                     book.origin_data.iter().for_each(|(site, _)| {
                         self.delete_origin_data(book.id.clone(), site);
                     });
-                    count += self.new_origin_data([(book.id, &book.origin_data)]);
+                    updated_count += self.new_origin_data([(book.id, &book.origin_data)]);
                 }
-                count
+                updated_count
             })
             .sum()
     }
 
     fn delete_origin_data(&self, id: u64, site: &book::Site) -> usize {
-        diesel::delete(schema::book_origin_data::dsl::book_origin_data
+        sql_debugging(diesel::delete(schema::book_origin_data::dsl::book_origin_data
             .filter(
                 schema::book_origin_data::book_id.eq(id as i64)
                     .and(schema::book_origin_data::site.eq(site))
-            ))
+            )))
             .into_boxed()
             .execute(&mut get_connection(&self.pool))
             .unwrap()
