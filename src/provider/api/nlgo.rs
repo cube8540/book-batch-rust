@@ -55,21 +55,27 @@ pub struct Doc {
 
 impl Doc {
     fn to_map(&self) -> HashMap<String, String> {
-        HashMap::from([
-            ("title".to_string(), self.title.clone()),
-            ("ea_isbn".to_string(), self.ea_isbn.clone()),
-            ("set_isbn".to_string(), self.set_isbn.clone()),
-            ("ea_add_code".to_string(), self.ea_add_code.clone()),
-            ("set_add_code".to_string(), self.set_add_code.clone()),
-            ("series_no".to_string(), self.series_no.clone()),
-            ("set_expression".to_string(), self.set_expression.clone()),
-            ("subject".to_string(), self.subject.clone()),
-            ("publisher".to_string(), self.publisher.clone()),
-            ("author".to_string(), self.author.clone()),
-            ("real_publish_date".to_string(), self.real_publish_date.clone()),
-            ("publish_predate".to_string(), self.publish_predate.clone()),
-            ("update_date".to_string(), self.update_date.clone()),
-        ])
+        let fields = [
+            ("title", &self.title),
+            ("ea_isbn", &self.ea_isbn),
+            ("set_isbn", &self.set_isbn),
+            ("ea_add_code", &self.ea_add_code),
+            ("set_add_code", &self.set_add_code),
+            ("series_no", &self.series_no),
+            ("set_expression", &self.set_expression),
+            ("subject", &self.subject),
+            ("publisher", &self.publisher),
+            ("author", &self.author),
+            ("real_publish_date", &self.real_publish_date),
+            ("publish_predate", &self.publish_predate),
+            ("update_date", &self.update_date),
+        ];
+
+        fields
+            .into_iter()
+            .filter(|(_, v)| !v.is_empty())
+            .map(|(k, v)| (k.to_string(), v.clone()))
+            .collect()
     }
 }
 

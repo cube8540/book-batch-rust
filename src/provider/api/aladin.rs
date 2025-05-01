@@ -95,21 +95,39 @@ pub struct BookItem {
 
 impl BookItem {
     fn to_map(&self) -> HashMap<String, String> {
-        std::collections::HashMap::from([
-            ("title".to_string(), self.title.clone()),
-            ("link".to_string(), self.link.clone()),
-            ("author".to_string(), self.author.clone()),
-            ("pub_date".to_string(), self.pub_date.clone()),
-            ("description".to_string(), self.description.clone()),
-            ("isbn".to_string(), self.isbn.clone()),
-            ("isbn13".to_string(), self.isbn13.clone()),
-            ("item_id".to_string(), self.item_id.to_string()),
-            ("price_sales".to_string(), self.price_sales.to_string()),
-            ("price_standard".to_string(), self.price_standard.to_string()),
-            ("publisher".to_string(), self.publisher.clone()),
-            ("category_id".to_string(), self.category_id.to_string()),
-            ("stock_status".to_string(), self.stock_status.clone()),
-        ])
+        let string_fields = [
+            ("title", &self.title),
+            ("link", &self.link),
+            ("author", &self.author),
+            ("pub_date", &self.pub_date),
+            ("description", &self.description),
+            ("isbn", &self.isbn),
+            ("isbn13", &self.isbn13),
+            ("publisher", &self.publisher),
+            ("stock_status", &self.stock_status),
+        ];
+
+        let numeric_fields = [
+            ("item_id", self.item_id.to_string()),
+            ("price_sales", self.price_sales.to_string()),
+            ("price_standard", self.price_standard.to_string()),
+            ("category_id", self.category_id.to_string()),
+        ];
+
+        let mut map: HashMap<String, String> = numeric_fields
+            .into_iter()
+            .map(|(k, v)| (k.to_string(), v))
+            .collect();
+
+        map.extend(
+            string_fields
+                .into_iter()
+                .filter(|(_, v)| !v.is_empty())
+                .map(|(k, v)| (k.to_string(), v.clone()))
+        );
+
+        map
+
     }
 }
 
