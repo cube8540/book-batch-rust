@@ -2,6 +2,7 @@ use regex::Regex;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
+use tracing::{debug, enabled, warn};
 
 pub mod repository;
 
@@ -123,20 +124,33 @@ impl BookOriginFilter {
         self.nodes.push(node);
     }
 
-    pub fn validate(&self, origin: &Original) -> bool {
-        if let Some(o) = &self.operator {
-            return match o {
-                Operator::AND => self.nodes.iter().all(|c| c.borrow().validate(origin)),
-                Operator::OR => self.nodes.iter().any(|c| c.borrow().validate(origin)),
-                Operator::NOR => self.nodes.iter().all(|c| !c.borrow().validate(origin)),
-                Operator::NAND => !self.nodes.iter().all(|c| c.borrow().validate(origin))
+    pub fn validate(&self, book: &Book) -> bool {
+        if let Some(origin) = book.origin_data.get(&self.site) {
+            if let Some(o) = &self.operator {
+                return match o {
+                    Operator::AND => self.nodes.iter().all(|c| c.borrow().validate(book)),
+                    Operator::OR => self.nodes.iter().any(|c| c.borrow().validate(book)),
+                    Operator::NOR => self.nodes.iter().all(|c| !c.borrow().validate(book)),
+                    Operator::NAND => !self.nodes.iter().all(|c| c.borrow().validate(book))
+                }
             }
-        }
-        if let (Some(regex), Some(property)) = (&self.regex, &self.property_name) {
-            let regex = Regex::new(regex).unwrap();
-            return origin.get(property).map_or(false, |v| regex.is_match(v))
-        }
+            if let (Some(regex), Some(property)) = (&self.regex, &self.property_name) {
+                let regex = Regex::new(regex).unwrap();
 
-        false
+                let result =  origin.get(property).map_or(false, |v| regex.is_match(v));
+                if !result && enabled!(tracing::Level::DEBUG) {
+                    debug!("{}에서 얻어온 {}가 {}와 매칭 되지 않아 도서가 필터링 됩니다. (ISBN: {}, 실제 값: {})",
+                        self.site, property, regex.as_str(), book.isbn, origin.get(property).unwrap_or(&"".to_string()));
+                }
+                result
+            } else {
+                if enabled!(tracing::Level::WARN) {
+                    warn!("{}에서 필터링을 위한 프로퍼티/정규식이 입력 되어 있지 않습니다. (ISBN: {})", self.site, book.isbn);
+                }
+                false
+            }
+        } else {
+            true
+        }
     }
 }

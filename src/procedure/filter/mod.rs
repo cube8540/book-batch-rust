@@ -1,5 +1,5 @@
-use crate::book::{Book, Site};
 use crate::book::repository::BookOriginFilterRepository;
+use crate::book::Book;
 
 pub trait Filter {
 
@@ -87,16 +87,7 @@ where
     {
         let filters = self.repository.get_root_filters();
         books.iter()
-            .filter(|book| {
-                book.origin_data.iter()
-                    .all(|(site, origin)| {
-                        if let Some(filter) = filters.get(site) {
-                            filter.borrow().validate(origin)
-                        } else {
-                            true
-                        }
-                    })
-            })
+            .filter(|book| filters.iter().all(|filter| filter.borrow().validate(book)))
             .cloned()
             .collect()
     }

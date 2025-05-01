@@ -17,7 +17,7 @@ pub fn new(pool: DbPool) -> Repository {
 
 type ParentId = u64;
 impl BookOriginFilterRepository for Repository {
-    fn get_root_filters(&self) -> HashMap<book::Site, book::Node> {
+    fn get_root_filters(&self) -> Vec<book::Node> {
         let filter_map = RefCell::new(HashMap::new());
         let mut ref_mut = filter_map.borrow_mut();
 
@@ -44,8 +44,8 @@ impl BookOriginFilterRepository for Repository {
         items.into_iter()
             .filter(|(filter, _)| filter.borrow().is_root)
             .map(|(filter, _)| {
-                (filter.borrow().site.clone(), filter.clone())
+                filter.clone()
             })
-            .collect::<HashMap<book::Site, book::Node>>()
+            .collect::<Vec<book::Node>>()
     }
 }

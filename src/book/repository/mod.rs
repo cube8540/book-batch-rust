@@ -1,4 +1,4 @@
-use crate::book::{Book, Node, Original, Publisher, Site};
+use crate::book::{Book, BookOriginFilter, Node, Original, Publisher, Site};
 use std::collections::HashMap;
 
 pub mod diesel;
@@ -34,5 +34,5 @@ pub trait BookRepository {
 }
 
 pub trait BookOriginFilterRepository {
-    fn get_root_filters(&self) -> HashMap<Site, Node>;
+    fn get_root_filters(&self) -> Vec<Node>;
 }
