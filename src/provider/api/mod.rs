@@ -36,6 +36,17 @@ pub struct Response {
     pub books: Vec<book::Book>,
 }
 
+impl Response {
+    pub fn empty(site: book::Site) -> Self {
+        Response {
+            total_count: 0,
+            page_no: 0,
+            site,
+            books: Vec::new(),
+        }
+    }
+}
+
 pub trait Client {
     fn get_books(&self, request: &Request) -> Result<Response, ClientError>;
 }

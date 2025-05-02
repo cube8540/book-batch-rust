@@ -3,6 +3,7 @@ use crate::book::repository::diesel::{entity, get_connection, schema, sql_debugg
 use crate::book::repository::{BookRepository, SQLError};
 use diesel::{BoolExpressionMethods, ExpressionMethods, QueryDsl, RunQueryDsl, SelectableHelper};
 use std::collections::HashMap;
+use chrono::NaiveDate;
 use tracing::error;
 
 pub struct Repository {
@@ -14,6 +15,21 @@ pub fn new(pool: DbPool) -> Repository {
 }
 
 impl BookRepository for Repository {
+    fn find_by_pub_date(&self, from: &NaiveDate, to: &NaiveDate) -> Vec<book::Book> {
+        let entities: Vec<entity::Book> = sql_debugging(schema::book::table
+            .filter(
+                schema::book::actual_pub_date.between(from, to)
+                    .or(schema::book::scheduled_pub_date.between(from, to))
+            )
+            .select(entity::Book::as_select()))
+            .load(&mut get_connection(&self.pool))
+            .unwrap();
+
+        entities.into_iter()
+            .map(|e| e.to_domain())
+            .collect()
+    }
+
     fn find_by_isbn<'book, I>(&self, isbn: I) -> Vec<book::Book>
     where
         I: Iterator<Item=&'book str>

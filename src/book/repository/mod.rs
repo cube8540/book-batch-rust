@@ -24,6 +24,8 @@ pub trait PublisherRepository {
 }
 
 pub trait BookRepository {
+    
+    fn find_by_pub_date(&self, from: &chrono::NaiveDate, to: &chrono::NaiveDate) -> Vec<Book>;
 
     fn find_by_isbn<'book, I>(&self, isbn: I) -> Vec<Book>
     where

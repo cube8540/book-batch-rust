@@ -1,8 +1,8 @@
 use crate::provider::api::{ClientError, Request, Response};
 use crate::{book, provider};
 use serde::Deserialize;
-use std::collections::HashMap;
 use serde_with::serde_as;
+use std::collections::HashMap;
 
 const BOOK_SEARCH_ENDPOINT: &'static str = "https://openapi.naver.com/v1/search/book_adv.xml";
 
@@ -12,39 +12,42 @@ pub const SITE: &'static str = "NAVER";
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct RssResponse {
-    #[serde(rename = "version")]
-    pub version: String,
     #[serde(rename = "channel")]
-    pub channel: Channel,
+    pub channel: Option<Channel>,
 
 }
 
 impl RssResponse {
     pub fn into_response(self) -> Response {
-        let books = self.channel.item.into_iter()
-            .map(|item| {
-                let actual_pub_date = if !item.pubdate.is_empty() {
-                    chrono::NaiveDate::parse_from_str(&item.pubdate, "%Y%m%d").ok()
-                } else {
-                    None
-                };
-                book::Book {
-                    id: 0,
-                    isbn: item.isbn.clone(),
-                    publisher_id: 0,
-                    title: item.title.clone(),
-                    scheduled_pub_date: None,
-                    actual_pub_date,
-                    origin_data: HashMap::from([(SITE.to_string(), item.to_map())]),
-                }
-            })
-            .collect();
+        if let Some(channel) = self.channel {
+            let item = channel.item.unwrap_or_else(|| vec![]);
+            let books = item.into_iter()
+                .map(|item| {
+                    let actual_pub_date = if !item.pubdate.is_empty() {
+                        chrono::NaiveDate::parse_from_str(&item.pubdate, "%Y%m%d").ok()
+                    } else {
+                        None
+                    };
+                    book::Book {
+                        id: 0,
+                        isbn: item.isbn.clone(),
+                        publisher_id: 0,
+                        title: item.title.clone(),
+                        scheduled_pub_date: None,
+                        actual_pub_date,
+                        origin_data: HashMap::from([(SITE.to_string(), item.to_map())]),
+                    }
+                })
+                .collect();
 
-        Response {
-            total_count: self.channel.total,
-            page_no: self.channel.start,
-            site: SITE.to_string(),
-            books,
+            Response {
+                total_count: channel.total,
+                page_no: channel.start,
+                site: SITE.to_string(),
+                books,
+            }
+        } else {
+            Response::empty(SITE.to_string())
         }
     }
 }
@@ -67,7 +70,7 @@ pub struct Channel {
     #[serde(rename = "display")]
     pub display: i32,
     #[serde(rename = "item")]
-    pub item: Vec<Item>,
+    pub item: Option<Vec<Item>>,
 
 }
 
@@ -142,11 +145,11 @@ impl provider::api::Client for Client {
             .header("X-Naver-Client-Secret", self.client_secret.as_str());
 
         let response = client.send()
-            .map_err(|e| ClientError::RequestFailed(e.to_string()))?;
+            .map_err(|e| ClientError::RequestFailed(format!("ISBN: {}, ERROR: {:?}", request.query, e)))?;
         let response_text = response.text()
-            .map_err(|e| ClientError::ResponseTextExtractionFailed(e.to_string()))?;
+            .map_err(|e| ClientError::ResponseTextExtractionFailed(format!("ISBN: {}, ERROR: {:?}", request.query, e)))?;
         let parsed_response: RssResponse = serde_xml_rs::from_str(&response_text)
-            .map_err(|e| ClientError::ResponseParseFailed(e.to_string()))?;
+            .map_err(|e| ClientError::ResponseParseFailed(format!("ISBN: {}, ERROR: {:?}", request.query, e)))?;
 
         Ok(parsed_response.into_response())
     }
