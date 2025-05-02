@@ -23,7 +23,7 @@ impl Reader for AladinReader {
 }
 
 impl FromPublisher for AladinReader {
-    fn read(&self, keyword: &str) -> Vec<Book> {
+    fn read(&self, keyword: &str, _: &Parameter) -> Vec<Book> {
         let mut v = Vec::new();
         let mut total_fetched = 0;
         let mut page = 1;

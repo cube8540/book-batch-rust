@@ -3,18 +3,14 @@ use crate::procedure::reader::{FromPublisher, Reader};
 use crate::procedure::Parameter;
 use crate::provider;
 use crate::provider::api::Client;
-use chrono::NaiveDate;
 use provider::api::nlgo;
 
 pub struct NlgoReader {
     client: nlgo::Client,
-
-    from: NaiveDate,
-    to: NaiveDate,
 }
 
-pub fn new(client: nlgo::Client, from: NaiveDate, to: NaiveDate) -> NlgoReader {
-    NlgoReader { client, from, to }
+pub fn new(client: nlgo::Client) -> NlgoReader {
+    NlgoReader { client }
 }
 
 impl Reader for NlgoReader {
@@ -24,7 +20,7 @@ impl Reader for NlgoReader {
 }
 
 impl FromPublisher for NlgoReader {
-    fn read(&self, keyword: &str) -> Vec<Book> {
+    fn read(&self, keyword: &str, parameter: &Parameter) -> Vec<Book> {
         let mut v = Vec::new();
         let mut page = 1;
         loop {
@@ -32,8 +28,8 @@ impl FromPublisher for NlgoReader {
                 page,
                 size: 500,
                 query: keyword.to_string(),
-                start_date: Some(self.from),
-                end_date: Some(self.to),
+                start_date: parameter.from.copied(),
+                end_date: parameter.to.copied(),
             };
             let response = self.client.get_books(&request).unwrap(); // TODO 에러 처리 해야함
             if !response.books.is_empty() {

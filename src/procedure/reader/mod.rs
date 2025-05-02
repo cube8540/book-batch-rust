@@ -17,7 +17,7 @@ pub trait FromPublisher: Reader {
         if let Some(keywords) = publisher.keywords.get(&self.site()) {
             keywords.iter()
                 .flat_map(|keyword| {
-                    let mut books = self.read(keyword);
+                    let mut books = self.read(keyword, parameter);
                     books.iter_mut().for_each(|b| b.publisher_id = publisher.id);
                     books
                 })
@@ -27,7 +27,7 @@ pub trait FromPublisher: Reader {
         }
     }
 
-    fn read(&self, keyword: &str) -> Vec<Book>;
+    fn read(&self, keyword: &str, parameter: &Parameter) -> Vec<Book>;
 
     fn site(&self) -> Site;
 }
