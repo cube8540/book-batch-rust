@@ -3,6 +3,7 @@ use chrono::NaiveDate;
 
 pub mod nlgo;
 pub mod aladin;
+pub mod naver;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ClientError {

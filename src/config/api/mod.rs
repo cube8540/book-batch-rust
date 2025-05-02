@@ -3,7 +3,8 @@ use serde::Deserialize;
 #[derive(Debug, Deserialize)]
 pub struct Config {
     nlgo: Credentials,
-    aladin: Credentials
+    aladin: Credentials,
+    naver: Credentials,
 }
 
 #[derive(Debug, Deserialize)]
@@ -19,6 +20,10 @@ impl Config {
 
     pub fn aladin(&self) -> &Credentials {
         &self.aladin
+    }
+
+    pub fn naver(&self) -> &Credentials {
+        &self.naver
     }
 }
 
