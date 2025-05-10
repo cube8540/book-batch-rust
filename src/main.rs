@@ -1,7 +1,8 @@
 use book_batch_rust::book::repository::PublisherRepository;
 use book_batch_rust::config::db;
-use book_batch_rust::{book, create_aladin_job_attr, create_naver_job_attr, create_nlgo_job_attr, from_to, procedure, JobName};
+use book_batch_rust::{book, create_aladin_job_attr, create_kyobo_job_attr, create_naver_job_attr, create_nlgo_job_attr, from_to, procedure, JobName};
 use tracing::error;
+
 
 fn main() {
     let config = book_batch_rust::config::load_config();
@@ -70,6 +71,23 @@ fn main() {
                 .from(&from)
                 .to(&to);
             job.run(&parameter.build());
+        },
+        JobName::KYOBO => {
+            let (reader, writer) = create_kyobo_job_attr(&config.api().kyobo(), &config.chromedriver().server_url(), &connection)
+                .unwrap_or_else(|err| {
+                    error!("{:?}", err);
+                    std::process::exit(1);
+                });
+            let job = procedure::Job::builder()
+                .reader(&reader)
+                .writer(&writer)
+                .build()
+                .unwrap();
+            let parameter = procedure::Parameter::builder()
+                .from(&from)
+                .to(&to);
+            job.run(&parameter.build());
         }
     }
+
 }

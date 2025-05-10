@@ -1,9 +1,12 @@
+use std::fmt;
+use std::fmt::Formatter;
 use crate::procedure::filter::Filter;
 use crate::procedure::reader::Reader;
 use crate::procedure::writer::Writer;
 use diesel::r2d2::ConnectionManager;
 use diesel::PgConnection;
 use r2d2::Pool;
+use crate::provider::html::kyobo::LoginProvider;
 
 pub mod book;
 pub mod config;
@@ -13,12 +16,20 @@ pub mod procedure;
 #[derive(Debug)]
 pub enum ArgumentError {
     InvalidArgument(String),
+    InvalidCredentials(String),
+}
+
+impl fmt::Display for ArgumentError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", self)
+    }
 }
 
 pub enum JobName {
     ALADIN,
     NAVER,
     NLGO,
+    KYOBO
 }
 
 impl JobName {
@@ -27,6 +38,7 @@ impl JobName {
             "aladin" => Ok(JobName::ALADIN),
             "naver" => Ok(JobName::NAVER),
             "nlgo" => Ok(JobName::NLGO),
+            "kyobo" => Ok(JobName::KYOBO),
             _ => Err(ArgumentError::InvalidArgument(format!("Invalid job name: {}", s))),
         }
     }
@@ -114,6 +126,30 @@ pub fn create_naver_job_attr(
     );
 
     (naver_reader, writer)
+}
+
+pub fn create_kyobo_job_attr(
+    kyobo: &config::api::Credentials,
+    connect_server_url: &str,
+    connection: &Pool<ConnectionManager<PgConnection>>
+) -> Result<(impl Reader, impl Writer), ArgumentError> {
+    let (id, pw) = (kyobo.key(), kyobo.secret());
+
+    let mut login_provider = provider::html::kyobo::chrome::Chrome::new(connect_server_url.to_owned());
+    let login_args = provider::html::kyobo::Login::new(id.to_owned(), pw.unwrap().to_owned());
+    _ = login_provider.do_login(&login_args)
+        .map_err(|err| ArgumentError::InvalidCredentials(err.to_string()))?;
+    
+    let client = provider::html::kyobo::Client::new(login_provider);
+    let kyobo_reader = procedure::reader::kyobo::KyoboReader::new(
+        client,
+        book::repository::diesel::book::new(connection.clone())
+    );
+    let writer = procedure::writer::UpsertBookWriter::new(
+        book::repository::diesel::book::new(connection.clone())
+    );
+    
+    Ok((kyobo_reader, writer))
 }
 
 fn create_filter_chain(connection: &Pool<ConnectionManager<PgConnection>>) -> procedure::filter::FilterChain {

@@ -1,9 +1,9 @@
 pub mod api;
 pub mod db;
 pub mod logger;
+mod chrome;
 
 use config;
-use diesel::Connection;
 use serde::Deserialize;
 use std::env;
 
@@ -11,6 +11,7 @@ use std::env;
 pub struct Config {
     db: db::Config,
     api: api::Config,
+    chromedriver: chrome::Config,
     logger: logger::Config,
 }
 
@@ -25,6 +26,10 @@ impl Config {
 
     pub fn logger(&self) -> &logger::Config {
         &self.logger
+    }
+
+    pub fn chromedriver(&self) -> &chrome::Config {
+        &self.chromedriver
     }
 }
 

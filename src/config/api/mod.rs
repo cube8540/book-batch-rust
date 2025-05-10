@@ -5,6 +5,7 @@ pub struct Config {
     nlgo: Credentials,
     aladin: Credentials,
     naver: Credentials,
+    kyobo: Credentials,
 }
 
 #[derive(Debug, Deserialize)]
@@ -24,6 +25,10 @@ impl Config {
 
     pub fn naver(&self) -> &Credentials {
         &self.naver
+    }
+
+    pub fn kyobo(&self) -> &Credentials {
+        &self.kyobo
     }
 }
 

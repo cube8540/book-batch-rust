@@ -1,6 +1,5 @@
 use crate::book::{Book, Node, Original, Publisher, Site};
 use std::collections::HashMap;
-use std::error::Error;
 use std::fmt;
 use std::fmt::Formatter;
 

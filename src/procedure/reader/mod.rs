@@ -1,6 +1,7 @@
 pub mod aladin;
 pub mod nlgo;
 pub mod naver;
+pub mod kyobo;
 
 use crate::book::{Book, Site};
 use crate::procedure;
