@@ -16,22 +16,10 @@ const AGENT: &'static str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebK
 const KYOBO_DOMAIN: &'static str = "https://www.kyobobook.co.kr";
 const ISBN_SEARCH_ENDPOINT: &'static str = "https://www.kyobobook.co.kr/product/detailViewKor.laf";
 
-#[derive(Debug)]
-pub struct Login {
-    id: String,
-    pw: String,
-}
-
-impl Login {
-    pub fn new(id: String, pw: String) -> Self {
-        Self { id, pw }
-    }
-}
-
-
 type CookieValue = String;
 pub trait LoginProvider {
-    fn do_login(&mut self, login_args: &Login) -> Result<(), ParsingError>;
+    fn login(&mut self) -> Result<(), ParsingError>;
+    
 
     fn get_cookies(&self) -> Result<Vec<CookieValue>, ParsingError>;
 }

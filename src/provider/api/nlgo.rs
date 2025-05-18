@@ -3,6 +3,8 @@ use crate::{book, provider};
 use serde::Deserialize;
 use serde_with::serde_as;
 use std::collections::HashMap;
+use std::env;
+use std::env::VarError;
 
 /// 국립중앙도서관 ISBN 도서정보 검색 API 엔드포인트 URL
 const ISBN_SEARCH_ENDPOINT: &'static str = "https://www.nl.go.kr/seoji/SearchApi.do";
@@ -51,32 +53,32 @@ pub struct Doc {
     /// 데이터 갱신일
     #[serde(rename = "UPDATE_DATE")]
     pub update_date: String,
+    /// 가격
+    #[serde(rename = "PRE_PRICE")]
+    pub price: String,
 }
 
 impl Doc {
     fn to_map(&self) -> HashMap<String, String> {
-        let fields = [
-            ("title", &self.title),
-            ("ea_isbn", &self.ea_isbn),
-            ("set_isbn", &self.set_isbn),
-            ("ea_add_code", &self.ea_add_code),
-            ("set_add_code", &self.set_add_code),
-            ("series_no", &self.series_no),
-            ("set_expression", &self.set_expression),
-            ("subject", &self.subject),
-            ("publisher", &self.publisher),
-            ("author", &self.author),
-            ("real_publish_date", &self.real_publish_date),
-            ("publish_predate", &self.publish_predate),
-            ("update_date", &self.update_date),
-        ];
-
-        fields
-            .into_iter()
-            .filter(|(_, v)| !v.is_empty())
-            .map(|(k, v)| (k.to_string(), v.clone()))
-            .collect()
-    }
+    let mut map = HashMap::new();
+    
+    map.insert("TITLE".to_string(), self.title.clone());
+    map.insert("EA_ISBN".to_string(), self.ea_isbn.clone());
+    map.insert("SET_ISBN".to_string(), self.set_isbn.clone());
+    map.insert("EA_ADD_CODE".to_string(), self.ea_add_code.clone());
+    map.insert("SET_ADD_CODE".to_string(), self.set_add_code.clone());
+    map.insert("SERIES_NO".to_string(), self.series_no.clone());
+    map.insert("SET_EXPRESSION".to_string(), self.set_expression.clone());
+    map.insert("SUBJECT".to_string(), self.subject.clone());
+    map.insert("PUBLISHER".to_string(), self.publisher.clone());
+    map.insert("AUTHOR".to_string(), self.author.clone());
+    map.insert("REAL_PUBLISH_DATE".to_string(), self.real_publish_date.clone());
+    map.insert("PUBLISH_PREDATE".to_string(), self.publish_predate.clone());
+    map.insert("UPDATE_DATE".to_string(), self.update_date.clone());
+    map.insert("PRE_PRICE".to_string(), self.price.clone());
+    
+    map
+}
 }
 
 /// API 응답 구조체로 검색 결과 메타데이터와 도서 정보 목록 포함
@@ -103,48 +105,17 @@ pub struct Client {
     key: String
 }
 
-impl Client {
-    pub fn new(key: &str) -> Self {
-        Self {
-            key: key.to_string(),
-        }
-    }
-
-    fn build_search_url(&self, request: &Request) -> Result<reqwest::Url, ClientError> {
-        let from = if let Some(date) = request.start_date {
-            date.format("%Y%m%d").to_string()
-        } else {
-            return Err(ClientError::MissingRequiredParameter("시작일은 반드시 입력 되어야 합니다.".to_string()))
-        };
-        let to = if let Some(date) = request.end_date {
-            date.format("%Y%m%d").to_string()
-        } else {
-            return Err(ClientError::MissingRequiredParameter("종료일은 반드시 입력 되어야 합니다.".to_string()))
-        };
-
-        // URL 생성
-        let mut url = reqwest::Url::parse(ISBN_SEARCH_ENDPOINT)
-            .map_err(|_| ClientError::InvalidBaseUrl)?;
-
-        // 쿼리 파라미터 추가
-        url.query_pairs_mut()
-            .append_pair("cert_key", &self.key)
-            .append_pair("start_publish_date", &from)
-            .append_pair("end_publish_date", &to)
-            .append_pair("publisher", &request.query)
-            .append_pair("result_style", "json")
-            .append_pair("page_no", &request.page.to_string())
-            .append_pair("page_size", &request.size.to_string())
-            .append_pair("sort", "INDEX_PUBLISHER")
-            .append_pair("order_by", "ASC");
-
-        Ok(url)
-    }
+pub fn new_client() -> Result<Client, VarError> {
+    let key = env::var("NLGO_KEY")?;
+    
+    Ok(Client {
+        key
+    })
 }
 
 impl provider::api::Client for Client {
     fn get_books(&self, request: &Request) -> Result<provider::api::Response, ClientError> {
-        let url = self.build_search_url(&request)?;
+        let url = build_search_url(&self.key, &request)?;
         let response = reqwest::blocking::get(url)
             .map_err(|e| ClientError::RequestFailed(e.to_string()))?;
         let response_text = response.text()
@@ -162,6 +133,37 @@ impl provider::api::Client for Client {
             books: books.collect(),
         })
     }
+}
+
+fn build_search_url(key: &str, request: &Request) -> Result<reqwest::Url, ClientError> {
+    let from = if let Some(date) = request.start_date {
+        date.format("%Y%m%d").to_string()
+    } else {
+        return Err(ClientError::MissingRequiredParameter("시작일은 반드시 입력 되어야 합니다.".to_string()))
+    };
+    let to = if let Some(date) = request.end_date {
+        date.format("%Y%m%d").to_string()
+    } else {
+        return Err(ClientError::MissingRequiredParameter("종료일은 반드시 입력 되어야 합니다.".to_string()))
+    };
+
+    // URL 생성
+    let mut url = reqwest::Url::parse(ISBN_SEARCH_ENDPOINT)
+        .map_err(|_| ClientError::InvalidBaseUrl)?;
+
+    // 쿼리 파라미터 추가
+    url.query_pairs_mut()
+        .append_pair("cert_key", key)
+        .append_pair("start_publish_date", &from)
+        .append_pair("end_publish_date", &to)
+        .append_pair("publisher", &request.query)
+        .append_pair("result_style", "json")
+        .append_pair("page_no", &request.page.to_string())
+        .append_pair("page_size", &request.size.to_string())
+        .append_pair("sort", "INDEX_PUBLISHER")
+        .append_pair("order_by", "ASC");
+
+    Ok(url)
 }
 
 fn convert_doc_to_book(doc: &Doc) -> book::Book {

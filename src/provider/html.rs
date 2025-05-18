@@ -1,10 +1,11 @@
-use std::fmt;
-use crate::book::Book;
-
 pub mod kyobo;
+
+use crate::book::Book;
+use std::fmt;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum ParsingError {
+    ArgumentError(String),
     AuthenticationError(String),
     PageNotFound(String),
     ElementNotFound(String),

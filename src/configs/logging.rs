@@ -6,25 +6,25 @@ use tracing_subscriber::fmt::time::LocalTime;
 use tracing_subscriber::fmt::writer::MakeWriterExt;
 
 #[derive(Debug, Deserialize)]
-pub struct Config {
-    dir: String,
-    name: String,
+pub(crate) struct Config {
+    pub dir: String,
+    pub name: String,
 
     /// 최대 로그 파일 개수로 로그 파일이 설정한 개수보다 커질 경우 기존의 로그파일들은 삭제 된다.
     /// 설정 되지 않을 시 로그 파일은 삭제 되지 않는다.
-    keep: Option<usize>,
+    pub keep: Option<usize>,
 
     /// 파일과 stdout에 출력할 로그의 레벨로 지정된 로그 레벨 이상만 로깅된다.
     /// 설정하지 않을시 기본값은 DEBUG로 설정 된다.
     ///
     /// 이 값은 [`tracing::Level`]로 변환 됨으로 자세한 사항은 해당 파일을 확인
-    level: Option<String>,
+    pub level: Option<String>,
 
     /// 로깅 파일이 분리 되는 기간으로 .log 파일 하나 당 설정된 기간 동안 로그가 기록 된다.
     /// 설정 되지 않을시 기본값은 DAILY로 설정된다.
     ///
     /// 이 값은 [`rolling::Rotation`]으로 변환 됨으로 자세한 사항은 해당 파일을 확인
-    rotation: Option<String>
+    pub rotation: Option<String>
 }
 
 static mut GUARD: Option<WorkerGuard> = None;

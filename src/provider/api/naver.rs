@@ -3,6 +3,7 @@ use crate::{book, provider};
 use serde::Deserialize;
 use serde_with::serde_as;
 use std::collections::HashMap;
+use std::env::VarError;
 
 const BOOK_SEARCH_ENDPOINT: &'static str = "https://openapi.naver.com/v1/search/book_adv.xml";
 
@@ -86,7 +87,7 @@ pub struct Item {
     #[serde(rename = "author")]
     pub author: String,
     #[serde(rename = "discount")]
-    pub discount: i32,
+    pub discount: Option<i32>,
     #[serde(rename = "publisher")]
     pub publisher: String,
     #[serde(rename = "pubdate")]
@@ -100,23 +101,22 @@ pub struct Item {
 
 impl Item {
     pub fn to_map(&self) -> HashMap<String, String> {
-        let fields = [
-            ("title", self.title.to_string()),
-            ("link", self.link.to_string()),
-            ("image", self.image.to_string()),
-            ("author", self.author.to_string()),
-            ("discount", self.discount.to_string()),
-            ("publisher", self.publisher.to_string()),
-            ("pubdate", self.pubdate.to_string()),
-            ("isbn", self.isbn.to_string()),
-            ("description", self.description.to_string()),
-        ];
+        let mut map = HashMap::new();
+        
+        map.insert("title".to_string(), self.title.clone());
+        map.insert("link".to_string(), self.link.clone());
+        map.insert("image".to_string(), self.image.clone());
+        map.insert("author".to_string(), self.author.clone());
+        map.insert("publisher".to_string(), self.publisher.clone());
+        map.insert("pubdate".to_string(), self.pubdate.clone());
+        map.insert("isbn".to_string(), self.isbn.clone());
+        map.insert("description".to_string(), self.description.clone());
 
-        fields
-            .into_iter()
-            .filter(|(_, v)| !v.is_empty())
-            .map(|(k, v)| (k.to_string(), v))
-            .collect()
+        if let Some(discount) = self.discount {
+            map.insert("discount".to_string(), discount.to_string());
+        }
+        
+        map
     }
 }
 
@@ -125,11 +125,14 @@ pub struct Client {
     client_secret: String,
 }
 
-pub fn new(client_id: String, client_secret: String) -> Client {
-    Client {
+pub fn new_client() -> Result<Client, VarError> {
+    let client_id = std::env::var("NAVER_KEY")?;
+    let client_secret = std::env::var("NAVER_SECRET")?;
+
+    Ok(Client {
         client_id,
         client_secret,
-    }
+    })
 }
 
 impl provider::api::Client for Client {

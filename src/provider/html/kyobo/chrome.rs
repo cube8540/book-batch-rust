@@ -1,5 +1,7 @@
-use crate::provider::html::kyobo::{CookieValue, Login, LoginProvider};
+use crate::provider::html::kyobo::{CookieValue, LoginProvider};
 use crate::provider::html::ParsingError;
+use std::env;
+use std::env::VarError;
 use thirtyfour_sync::prelude::ElementQueryable;
 use thirtyfour_sync::{By, DesiredCapabilities, WebDriver, WebDriverCommands};
 
@@ -8,28 +10,39 @@ const AGENT: &'static str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebK
 const COOKIE_DOMAIN: &'static str = ".kyobobook.co.kr";
 const LOGIN_URL: &'static str = "https://mmbr.kyobobook.co.kr/login";
 
-pub struct Chrome {
+pub struct ChromeDriverLoginProvider {
     server_url: String,
+    id: String,
+    pw: String,
 
     access_token: Option<String>,
+    last_login_at: Option<chrono::NaiveDateTime>,
 }
 
-impl Chrome {
-    pub fn new(server_url: String) -> Self {
-        Self { server_url, access_token: None }
-    }
+pub fn new_provider() -> Result<ChromeDriverLoginProvider, VarError> {
+    let id = env::var("KYOBO_ID")?;
+    let pw = env::var("KYOBO_SECRET")?;
+
+    let server_url = env::var("CHROMEDRIVER_URL")?;
+
+    Ok(ChromeDriverLoginProvider {
+        server_url,
+        id,
+        pw,
+        access_token: None,
+        last_login_at: None,
+    })
 }
 
-impl LoginProvider for Chrome {
-
-    fn do_login(&mut self, login_args: &Login) -> Result<(), ParsingError> {
+impl LoginProvider for ChromeDriverLoginProvider {
+    fn login(&mut self) -> Result<(), ParsingError> {
         let mut caps = DesiredCapabilities::chrome();
         caps.add_chrome_arg(&format!("--user-agent={}", AGENT))
             .map_err(|err| ParsingError::AuthenticationError(err.to_string()))?;
         caps.add_chrome_arg("--disable-blink-features=AutomationControlled")
             .map_err(|err| ParsingError::AuthenticationError(err.to_string()))?;
 
-        let driver = WebDriver::new(self.server_url.as_str(), caps)
+        let driver = WebDriver::new(&self.server_url, caps)
             .map_err(|err| ParsingError::UnknownError(err.to_string()))?;
         driver.get(LOGIN_URL)
             .map_err(|err| ParsingError::PageNotFound(err.to_string()))?;
@@ -44,9 +57,9 @@ impl LoginProvider for Chrome {
         let pw_element = pw_form.find_element(By::ClassName("form_ip"))
             .map_err(|err| ParsingError::ElementNotFound(err.to_string()))?;
 
-        _ = id_element.send_keys(login_args.id.as_str())
+        _ = id_element.send_keys(&self.id)
             .map_err(|err| ParsingError::UnknownError(err.to_string()))?;
-        _ = pw_element.send_keys(login_args.pw.as_str())
+        _ = pw_element.send_keys(&self.pw)
             .map_err(|err| ParsingError::UnknownError(err.to_string()))?;
 
         let login_btn = driver.find_element(By::Id("loginBtn"))
@@ -64,8 +77,9 @@ impl LoginProvider for Chrome {
         let token = access_token.value().to_string().trim_matches('"').to_string();
         _ = driver.quit()
             .map_err(|err| ParsingError::UnknownError(err.to_string()))?;
-
+        
         self.access_token = Some(token);
+        self.last_login_at = Some(chrono::Local::now().naive_local());
         Ok(())
     }
 

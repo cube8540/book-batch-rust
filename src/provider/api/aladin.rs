@@ -3,6 +3,8 @@ use crate::{book, provider};
 use reqwest::blocking;
 use serde::Deserialize;
 use std::collections::HashMap;
+use std::env;
+use std::env::VarError;
 
 /// 알라딘 API 엔드포인트 URL
 const ALADIN_API_ENDPOINT: &'static str = "https://www.aladin.co.kr/ttb/api/ItemSearch.aspx";
@@ -95,39 +97,23 @@ pub struct BookItem {
 
 impl BookItem {
     fn to_map(&self) -> HashMap<String, String> {
-        let string_fields = [
-            ("title", &self.title),
-            ("link", &self.link),
-            ("author", &self.author),
-            ("pub_date", &self.pub_date),
-            ("description", &self.description),
-            ("isbn", &self.isbn),
-            ("isbn13", &self.isbn13),
-            ("publisher", &self.publisher),
-            ("stock_status", &self.stock_status),
-        ];
+        let mut map = HashMap::new();
 
-        let numeric_fields = [
-            ("item_id", self.item_id.to_string()),
-            ("price_sales", self.price_sales.to_string()),
-            ("price_standard", self.price_standard.to_string()),
-            ("category_id", self.category_id.to_string()),
-        ];
-
-        let mut map: HashMap<String, String> = numeric_fields
-            .into_iter()
-            .map(|(k, v)| (k.to_string(), v))
-            .collect();
-
-        map.extend(
-            string_fields
-                .into_iter()
-                .filter(|(_, v)| !v.is_empty())
-                .map(|(k, v)| (k.to_string(), v.clone()))
-        );
+        map.insert("title".to_string(), self.title.clone());
+        map.insert("link".to_string(), self.link.clone());
+        map.insert("author".to_string(), self.author.clone());
+        map.insert("pubDate".to_string(), self.pub_date.clone());
+        map.insert("description".to_string(), self.description.clone());
+        map.insert("isbn".to_string(), self.isbn.clone());
+        map.insert("isbn13".to_string(), self.isbn13.clone());
+        map.insert("itemId".to_string(), self.item_id.to_string());
+        map.insert("priceSales".to_string(), self.price_sales.to_string());
+        map.insert("priceStandard".to_string(), self.price_standard.to_string());
+        map.insert("publisher".to_string(), self.publisher.clone());
+        map.insert("categoryId".to_string(), self.category_id.to_string());
+        map.insert("stockStatus".to_string(), self.stock_status.clone());
 
         map
-
     }
 }
 
@@ -137,31 +123,11 @@ pub struct Client {
     ttb_key: String,
 }
 
-
-impl Client {
-    pub fn new(ttb_key: &str) -> Self {
-        Client {
-            ttb_key: ttb_key.to_string(),
-        }
-    }
-
-    fn build_search_url(&self, request: &Request) -> Result<reqwest::Url, ClientError> {
-        let mut url = reqwest::Url::parse(ALADIN_API_ENDPOINT)
-            .map_err(|_| ClientError::InvalidBaseUrl)?;
-
-        url.query_pairs_mut()
-            .append_pair("ttbkey", &self.ttb_key)
-            .append_pair("Query", &request.query.clone())
-            .append_pair("QueryType", "Publisher")  // Publisher로 고정
-            .append_pair("start", &request.page.to_string())
-            .append_pair("MaxResults", &request.size.to_string())
-            .append_pair("SearchTarget", "Book")  // Book으로 고정
-            .append_pair("output", "js") // JS로 고정
-            .append_pair("Version", "20131101")
-            .append_pair("Sort", "PublishTime");
-
-        Ok(url)
-    }
+pub fn new_client() -> Result<Client, VarError> {
+    let key = env::var("ALADIN_KEY")?;
+    Ok(Client {
+        ttb_key: key,
+    })
 }
 
 impl provider::api::Client for Client {
@@ -171,7 +137,7 @@ impl provider::api::Client for Client {
             .build()
             .map_err(|e| ClientError::RequestFailed(format!("클라이언트 생성 실패: {}", e)))?;
 
-        let url = self.build_search_url(&request)?;
+        let url = build_search_url(&self.ttb_key, &request)?;
         let response = client.get(url)
             .send()
             .map_err(|err| ClientError::RequestFailed(err.to_string()))?;
@@ -196,6 +162,25 @@ impl provider::api::Client for Client {
             books: books.collect(),
         })
     }
+}
+
+
+fn build_search_url(key: &str, request: &Request) -> Result<reqwest::Url, ClientError> {
+    let mut url = reqwest::Url::parse(ALADIN_API_ENDPOINT)
+        .map_err(|_| ClientError::InvalidBaseUrl)?;
+
+    url.query_pairs_mut()
+        .append_pair("ttbkey", key)
+        .append_pair("Query", &request.query.clone())
+        .append_pair("QueryType", "Publisher")  // Publisher로 고정
+        .append_pair("start", &request.page.to_string())
+        .append_pair("MaxResults", &request.size.to_string())
+        .append_pair("SearchTarget", "Book")  // Book으로 고정
+        .append_pair("output", "js") // JS로 고정
+        .append_pair("Version", "20131101")
+        .append_pair("Sort", "PublishTime");
+
+    Ok(url)
 }
 
 fn convert_item_to_book(item: &BookItem) -> book::Book {

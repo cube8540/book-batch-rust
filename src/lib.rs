@@ -1,17 +1,17 @@
-use std::fmt;
-use std::fmt::Formatter;
 use crate::procedure::filter::Filter;
 use crate::procedure::reader::Reader;
 use crate::procedure::writer::Writer;
+use crate::provider::html::kyobo::LoginProvider;
 use diesel::r2d2::ConnectionManager;
 use diesel::PgConnection;
 use r2d2::Pool;
-use crate::provider::html::kyobo::LoginProvider;
+use std::fmt;
+use std::fmt::Formatter;
 
 pub mod book;
-pub mod config;
-pub mod provider;
 pub mod procedure;
+pub mod configs;
+pub mod provider;
 
 #[derive(Debug)]
 pub enum ArgumentError {
@@ -83,11 +83,9 @@ impl Argument {
 
 
 
-pub fn create_nlgo_job_attr(
-    nlgo: &config::api::Credentials,
-    connection: &Pool<ConnectionManager<PgConnection>>
-) -> (impl Reader, impl Writer, impl Filter) {
-    let client = provider::api::nlgo::Client::new(nlgo.key());
+pub fn create_nlgo_job_attr(connection: &Pool<ConnectionManager<PgConnection>>) -> (impl Reader, impl Writer, impl Filter) {
+    let client = provider::api::nlgo::new_client()
+        .expect("Failed to create nlgo client");
     let nlgo_reader = procedure::reader::nlgo::new(client);
     let writer = procedure::writer::NewBookOnlyWriter::new(
         book::repository::diesel::book::new(connection.clone())
@@ -97,11 +95,9 @@ pub fn create_nlgo_job_attr(
     (nlgo_reader, writer, filter_chain)
 }
 
-pub fn create_aladin_job_attr(
-    aladin: &config::api::Credentials,
-    connection: &Pool<ConnectionManager<PgConnection>>
-) -> (impl Reader, impl Writer, impl Filter) {
-    let client = provider::api::aladin::Client::new(aladin.key());
+pub fn create_aladin_job_attr(connection: &Pool<ConnectionManager<PgConnection>>) -> (impl Reader, impl Writer, impl Filter) {
+    let client = provider::api::aladin::new_client()
+        .expect("Failed to create aladin client");
     let aladin_reader = procedure::reader::aladin::new(client);
     let writer = procedure::writer::UpsertBookWriter::new(
         book::repository::diesel::book::new(connection.clone())
@@ -111,12 +107,9 @@ pub fn create_aladin_job_attr(
     (aladin_reader, writer, filter_chain)
 }
 
-pub fn create_naver_job_attr(
-    naver: &config::api::Credentials,
-    connection: &Pool<ConnectionManager<PgConnection>>
-) -> (impl Reader, impl Writer) {
-    let (key, secret) = (naver.key(), naver.secret());
-    let client = provider::api::naver::new(key.to_owned(), secret.unwrap().to_owned());
+pub fn create_naver_job_attr(connection: &Pool<ConnectionManager<PgConnection>>) -> (impl Reader, impl Writer) {
+    let client = provider::api::naver::new_client()
+        .expect("Failed to create naver client");
     let naver_reader = procedure::reader::naver::new(
         client,
         book::repository::diesel::book::new(connection.clone())
@@ -128,18 +121,13 @@ pub fn create_naver_job_attr(
     (naver_reader, writer)
 }
 
-pub fn create_kyobo_job_attr(
-    kyobo: &config::api::Credentials,
-    connect_server_url: &str,
-    connection: &Pool<ConnectionManager<PgConnection>>
-) -> Result<(impl Reader, impl Writer), ArgumentError> {
-    let (id, pw) = (kyobo.key(), kyobo.secret());
+pub fn create_kyobo_job_attr(connection: &Pool<ConnectionManager<PgConnection>>) -> Result<(impl Reader, impl Writer), ArgumentError> {
+    let mut login_provider = provider::html::kyobo::chrome::new_provider()
+        .expect("Failed to create kyobo login provider");
 
-    let mut login_provider = provider::html::kyobo::chrome::Chrome::new(connect_server_url.to_owned());
-    let login_args = provider::html::kyobo::Login::new(id.to_owned(), pw.unwrap().to_owned());
-    _ = login_provider.do_login(&login_args)
+    _ = login_provider.login()
         .map_err(|err| ArgumentError::InvalidCredentials(err.to_string()))?;
-    
+
     let client = provider::html::kyobo::Client::new(login_provider);
     let kyobo_reader = procedure::reader::kyobo::KyoboReader::new(
         client,
@@ -148,7 +136,7 @@ pub fn create_kyobo_job_attr(
     let writer = procedure::writer::UpsertBookWriter::new(
         book::repository::diesel::book::new(connection.clone())
     );
-    
+
     Ok((kyobo_reader, writer))
 }
 

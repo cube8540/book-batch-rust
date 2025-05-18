@@ -1,12 +1,10 @@
 use book_batch_rust::book::repository::PublisherRepository;
-use book_batch_rust::config::db;
-use book_batch_rust::{book, create_aladin_job_attr, create_kyobo_job_attr, create_naver_job_attr, create_nlgo_job_attr, from_to, procedure, JobName};
+use book_batch_rust::{book, configs, create_aladin_job_attr, create_kyobo_job_attr, create_naver_job_attr, create_nlgo_job_attr, from_to, procedure, JobName};
 use tracing::error;
 
-
 fn main() {
-    let config = book_batch_rust::config::load_config();
-    book_batch_rust::config::logger::set_global_logging_config(config.logger());
+    configs::load_dotenv();
+    configs::set_global_logging_config().expect("Failed to set global logging config");
 
     let args = std::env::args().collect::<Vec<String>>();
     let args = book_batch_rust::Argument::new(&args).unwrap_or_else(|err| {
@@ -14,7 +12,7 @@ fn main() {
         std::process::exit(1);
     });
 
-    let connection = db::connect_to_database(config.db());
+    let connection = configs::connect_to_postgres();
     let (from, to) = if let (Some(from), Some(to)) = (args.from, args.to) {
         (from, to)
     } else {
@@ -25,7 +23,7 @@ fn main() {
     match args.job {
         JobName::NLGO => {
             let (reader, writer, filter) =
-                create_nlgo_job_attr(config.api().nlgo(), &connection);
+                create_nlgo_job_attr(&connection);
             let job = procedure::Job::builder()
                 .reader(&reader)
                 .writer(&writer)
@@ -44,7 +42,7 @@ fn main() {
         }
         JobName::ALADIN => {
             let (reader, writer, filter) =
-                create_aladin_job_attr(config.api().aladin(), &connection);
+                create_aladin_job_attr(&connection);
             let job = procedure::Job::builder()
                 .reader(&reader)
                 .writer(&writer)
@@ -60,7 +58,7 @@ fn main() {
             }
         }
         JobName::NAVER => {
-            let (reader, writer) = create_naver_job_attr(&config.api().naver(), &connection);
+            let (reader, writer) = create_naver_job_attr(&connection);
             let job = procedure::Job::builder()
                 .reader(&reader)
                 .writer(&writer)
@@ -73,7 +71,7 @@ fn main() {
             job.run(&parameter.build());
         },
         JobName::KYOBO => {
-            let (reader, writer) = create_kyobo_job_attr(&config.api().kyobo(), &config.chromedriver().server_url(), &connection)
+            let (reader, writer) = create_kyobo_job_attr(&connection)
                 .unwrap_or_else(|err| {
                     error!("{:?}", err);
                     std::process::exit(1);
