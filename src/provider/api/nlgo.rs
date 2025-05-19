@@ -177,13 +177,12 @@ fn convert_doc_to_book(doc: &Doc) -> book::Book {
     } else {
         None
     };
-    book::Book {
-        id: 0,
-        isbn: doc.ea_isbn.clone(),
-        publisher_id: 0,
-        title: doc.title.clone(),
+    book::Book::new(
+        doc.ea_isbn.clone(),
+        0,
+        doc.title.clone(),
         scheduled_pub_date,
         actual_pub_date,
-        origin_data: HashMap::from([(SITE.to_string(), doc.to_map())]),
-    }
+        HashMap::from([(SITE.to_string(), doc.to_map())]),
+    )
 }

@@ -36,12 +36,12 @@ where
         let (from, to) = (parameter.from().as_ref().unwrap(), parameter.to().as_ref().unwrap());
         let books = self.repository.find_by_pub_date(from, to);
         books.iter()
-            .filter(|book| book.actual_pub_date.is_some())
+            .filter(|book| book.actual_pub_date().is_some())
             .map(|book| {
-                self.client.get(book.isbn.as_str())
+                self.client.get(book.isbn())
                     .map(|parsed_book| Some(parsed_book))
                     .unwrap_or_else(|e| {
-                        error!("ISBN: {}, ERROR: {:?}", book.isbn, e);
+                        error!("ISBN: {}, ERROR: {:?}", book.isbn(), e);
                         None
                     })
             })

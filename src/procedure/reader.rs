@@ -16,11 +16,11 @@ pub trait FromPublisher: Reader {
 
     fn read_books(&self, parameter: &Parameter) -> Vec<Book> {
         let publisher = parameter.publisher().as_ref().unwrap();
-        if let Some(keywords) = publisher.keywords.get(&self.site()) {
+        if let Some(keywords) = publisher.keywords().get(&self.site()) {
             keywords.iter()
                 .flat_map(|keyword| {
                     let mut books = self.read(keyword, parameter);
-                    books.iter_mut().for_each(|b| b.publisher_id = publisher.id);
+                    books.iter_mut().for_each(|b| b.set_publisher_id(publisher.id()));
                     books
                 })
                 .collect()

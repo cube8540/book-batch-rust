@@ -1,5 +1,6 @@
 use crate::provider::api::{ClientError, Request};
 use crate::{book, provider};
+use chrono::NaiveDate;
 use reqwest::blocking;
 use serde::Deserialize;
 use std::collections::HashMap;
@@ -184,13 +185,12 @@ fn build_search_url(key: &str, request: &Request) -> Result<reqwest::Url, Client
 }
 
 fn convert_item_to_book(item: &BookItem) -> book::Book {
-    book::Book {
-        id: 0,
-        isbn: item.isbn13.clone(),
-        publisher_id: 0,
-        title: item.title.clone(),
-        scheduled_pub_date: None,
-        actual_pub_date: chrono::NaiveDate::parse_from_str(item.pub_date.as_str(), "%Y-%m-%d").ok(),
-        origin_data: HashMap::from([(SITE.to_string(), item.to_map())]),
-    }
+    book::Book::new(
+        item.isbn13.clone(),
+        0,
+        item.title.clone(),
+        None,
+        NaiveDate::parse_from_str(item.pub_date.as_str(), "%Y-%m-%d").ok(),
+        HashMap::from([(SITE.to_string(), item.to_map())]),
+    )
 }

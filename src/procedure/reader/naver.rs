@@ -31,7 +31,7 @@ where
                 let request = provider::api::Request {
                     page: 0,
                     size: 0,
-                    query: b.isbn.clone(),
+                    query: b.isbn().to_owned(),
                     start_date: None,
                     end_date: None,
                 };

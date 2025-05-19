@@ -1,3 +1,4 @@
+use chrono::NaiveDate;
 use regex::Regex;
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -9,20 +10,34 @@ pub mod repository;
 /// 출판사 도메인
 #[derive(Debug, Clone)]
 pub struct Publisher {
-    pub id: u64,
-    pub name: String,
-    pub keywords: HashMap<Site, Vec<String>>,
+    id: u64,
+    name: String,
+    keywords: HashMap<Site, Vec<String>>,
 }
 
 impl Publisher {
     pub fn new(id: u64, name: String) -> Self {
-        Publisher{
+        Self {
             id,
             name,
             keywords: HashMap::new(),
         }
     }
 
+    pub fn id(&self) -> u64 {
+        self.id
+    }
+
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    pub fn keywords(&self) -> &HashMap<Site, Vec<String>> {
+        &self.keywords
+    }
+}
+
+impl Publisher {
     pub fn add_keyword(&mut self, site: Site, keyword: String) {
         self.keywords
             .entry(site)
@@ -40,13 +55,86 @@ pub type Original = HashMap<String, String>;
 /// 도서 정보
 #[derive(Debug, Clone)]
 pub struct Book {
-    pub id: u64,
-    pub isbn: String,
-    pub publisher_id: u64,
-    pub title: String,
-    pub scheduled_pub_date: Option<chrono::NaiveDate>,
-    pub actual_pub_date: Option<chrono::NaiveDate>,
-    pub origin_data: HashMap<Site, Original>,
+    id: u64,
+    isbn: String,
+    publisher_id: u64,
+    title: String,
+    scheduled_pub_date: Option<NaiveDate>,
+    actual_pub_date: Option<NaiveDate>,
+    origin_data: HashMap<Site, Original>,
+}
+
+impl Book {
+    pub fn new(
+        isbn: String,
+        publisher_id: u64,
+        title: String,
+        scheduled_pub_date: Option<NaiveDate>,
+        actual_pub_date: Option<NaiveDate>,
+        origin_data: HashMap<Site, Original>,
+    ) -> Self {
+        Self {
+            id: 0,
+            isbn,
+            publisher_id,
+            title,
+            scheduled_pub_date,
+            actual_pub_date,
+            origin_data,
+        }
+    }
+    
+    pub fn exists(
+        id: u64,
+        isbn: String,
+        publisher_id: u64,
+        title: String,
+        scheduled_pub_date: Option<NaiveDate>,
+        actual_pub_date: Option<NaiveDate>,
+        origin_data: HashMap<Site, Original>,
+    ) -> Self {
+        Self {
+            id,
+            isbn,
+            publisher_id,
+            title,
+            scheduled_pub_date,
+            actual_pub_date,
+            origin_data,
+        }
+    }
+
+    pub fn id(&self) -> u64 {
+        self.id
+    }
+
+    pub fn isbn(&self) -> &str {
+        &self.isbn
+    }
+
+    pub fn publisher_id(&self) -> u64 {
+        self.publisher_id
+    }
+
+    pub fn title(&self) -> &str {
+        &self.title
+    }
+
+    pub fn scheduled_pub_date(&self) -> Option<&NaiveDate> {
+        self.scheduled_pub_date.as_ref()
+    }
+
+    pub fn actual_pub_date(&self) -> Option<&NaiveDate> {
+        self.actual_pub_date.as_ref()
+    }
+
+    pub fn origin_data(&self) -> &HashMap<Site, Original> {
+        &self.origin_data
+    }
+
+    pub fn set_publisher_id(&mut self, publisher_id: u64) {
+        self.publisher_id = publisher_id;
+    }
 }
 
 impl Book {
@@ -108,14 +196,48 @@ pub type Node = Rc<RefCell<BookOriginFilter>>;
 /// 도서의 원본 데이터를 이용하여 도서가 유효한지 판단한다.
 #[derive(Debug)]
 pub struct BookOriginFilter {
-    pub id: u64,
-    pub name: String,
-    pub site: Site,
-    pub is_root: bool,
-    pub operator: Option<Operator>,
-    pub property_name: Option<String>,
-    pub regex: Option<String>,
-    pub nodes: Vec<Node>,
+    id: u64,
+    name: String,
+    site: Site,
+    is_root: bool,
+    operator: Option<Operator>,
+    property_name: Option<String>,
+    regex: Option<String>,
+    nodes: Vec<Node>,
+}
+
+impl BookOriginFilter {
+    pub fn id(&self) -> u64 {
+        self.id
+    }
+
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    pub fn site(&self) -> &str {
+        &self.site
+    }
+
+    pub fn is_root(&self) -> bool {
+        self.is_root
+    }
+
+    pub fn operator(&self) -> &Option<Operator> {
+        &self.operator
+    }
+
+    pub fn property_name(&self) -> &Option<String> {
+        &self.property_name
+    }
+
+    pub fn regex(&self) -> &Option<String> {
+        &self.regex
+    }
+
+    pub fn nodes(&self) -> &Vec<Node> {
+        &self.nodes
+    }
 }
 
 impl BookOriginFilter {

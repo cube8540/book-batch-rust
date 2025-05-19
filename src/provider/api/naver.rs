@@ -29,15 +29,14 @@ impl RssResponse {
                     } else {
                         None
                     };
-                    book::Book {
-                        id: 0,
-                        isbn: item.isbn.clone(),
-                        publisher_id: 0,
-                        title: item.title.clone(),
-                        scheduled_pub_date: None,
+                    book::Book::new(
+                        item.isbn.clone(),
+                        0,
+                        item.title.clone(),
+                        None,
                         actual_pub_date,
-                        origin_data: HashMap::from([(SITE.to_string(), item.to_map())]),
-                    }
+                        HashMap::from([(SITE.to_string(), item.to_map())])
+                    )
                 })
                 .collect();
 

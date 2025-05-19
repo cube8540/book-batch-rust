@@ -27,7 +27,7 @@ impl <R: BookRepository> Writer for NewBookOnlyWriter<R> {
         let exists = get_target_books(&self.repository, books);
 
         let filtered_books: Vec<&Book> = books.iter()
-            .filter(|b| !exists.contains_key(&b.isbn))
+            .filter(|b| !exists.contains_key(b.isbn()))
             .collect();
 
         let chunks = filtered_books.chunks(WRITE_SIZE);
@@ -37,7 +37,7 @@ impl <R: BookRepository> Writer for NewBookOnlyWriter<R> {
                 if let Ok(books) = result {
                     books
                 } else {
-                    let isbn: Vec<&str> = books.iter().map(|b| b.isbn.as_str()).collect();
+                    let isbn: Vec<&str> = books.iter().map(|b| b.isbn()).collect();
                     error!("도서 저장 중 에러가 발생 했습니다 {:?} (ISBN => {:?})", result.unwrap_err(), isbn);
                     vec![]
                 }
@@ -67,7 +67,7 @@ impl <R: BookRepository> Writer for UpsertBookWriter<R> {
         let mut update_books: Vec<Book> = vec![];
 
         for book in books {
-            if let Some(mut ext) = exists.remove(&book.isbn) {
+            if let Some(mut ext) = exists.remove(book.isbn()) {
                 ext.merge(book);
                 update_books.push(ext);
             } else {
@@ -77,17 +77,17 @@ impl <R: BookRepository> Writer for UpsertBookWriter<R> {
 
         new_books.chunks(WRITE_SIZE).into_iter().for_each(|books| {
             if let Err(err) = self.repository.new_books(books.iter().cloned(), true) {
-                let isbn: Vec<&str> = books.iter().map(|b| b.isbn.as_str()).collect();
+                let isbn: Vec<&str> = books.iter().map(|b| b.isbn()).collect();
                 error!("도서 저장 중 에러가 발생 했습니다 {:?} (ISBN => {:?})", err, isbn);
             }
         });
         update_books.iter().for_each(|book| {
             if let Err(err) = self.repository.update_book(book, true) {
-                error!("도서 저장 중 에러가 발생 했습니다. {:?} (ISBN => {})", err, book.isbn);
+                error!("도서 저장 중 에러가 발생 했습니다. {:?} (ISBN => {})", err, book.isbn());
             }
         });
 
-        self.repository.find_by_isbn(books.iter().map(|b| b.isbn.as_str()))
+        self.repository.find_by_isbn(books.iter().map(|b| b.isbn()))
     }
 }
 
@@ -95,8 +95,8 @@ fn get_target_books<R>(repository: &R, target: &[Book]) -> HashMap<String, Book>
 where
     R: BookRepository
 {
-    repository.find_by_isbn(target.iter().map(|b| b.isbn.as_str()))
+    repository.find_by_isbn(target.iter().map(|b| b.isbn()))
         .into_iter()
-        .map(|b| (b.isbn.clone(), b))
+        .map(|b| (b.isbn().to_owned(), b))
         .collect::<HashMap<String, Book>>()
 }

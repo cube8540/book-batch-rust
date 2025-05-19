@@ -44,7 +44,7 @@ pub struct EmptyIsbnFilter;
 impl Filter for EmptyIsbnFilter {
     fn do_filter(&self, books: Vec<Book>) -> Vec<Book> {
         books.into_iter()
-            .filter(|book| !book.isbn.is_empty())
+            .filter(|book| !book.isbn().is_empty())
             .collect()
     }
 }

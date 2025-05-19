@@ -115,13 +115,12 @@ fn html_to_book(document: &Html) -> Result<Book, ParsingError> {
         origin_data.insert("prod_description".to_owned(), prod_description);
     }
 
-    Ok(Book {
-        id: 0,
-        isbn: isbn.to_owned(),
-        publisher_id: 0,
-        title: title.clone(),
-        scheduled_pub_date: None,
-        actual_pub_date: None,
-        origin_data: HashMap::from([(SITE.to_owned(), origin_data)])
-    })
+    Ok(Book::new(
+        isbn.to_owned(),
+        0,
+        title.clone(),
+        None,
+        None,
+        HashMap::from([(SITE.to_owned(), origin_data)])
+    ))
 }
