@@ -24,7 +24,8 @@ where
     R: repository::BookRepository,
 {
     fn read_books(&self, parameter: &Parameter) -> Vec<Book> {
-        let books = self.repository.find_by_pub_date(parameter.from.unwrap(), parameter.to.unwrap());
+        let (from, to) = (parameter.from().as_ref().unwrap(), parameter.to().as_ref().unwrap());
+        let books = self.repository.find_by_pub_date(from, to);
         books.iter()
             .flat_map(|b| {
                 let request = provider::api::Request {

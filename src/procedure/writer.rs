@@ -6,7 +6,7 @@ use tracing::error;
 const WRITE_SIZE: usize = 100;
 
 pub trait Writer {
-    fn write(&self, books: &[&Book]) -> Vec<Book>;
+    fn write(&self, books: &[Book]) -> Vec<Book>;
 }
 
 pub struct NewBookOnlyWriter<R>
@@ -23,12 +23,11 @@ impl <R: BookRepository> NewBookOnlyWriter<R> {
 }
 
 impl <R: BookRepository> Writer for NewBookOnlyWriter<R> {
-    fn write(&self, books: &[&Book]) -> Vec<Book> {
+    fn write(&self, books: &[Book]) -> Vec<Book> {
         let exists = get_target_books(&self.repository, books);
 
         let filtered_books: Vec<&Book> = books.iter()
             .filter(|b| !exists.contains_key(&b.isbn))
-            .cloned()
             .collect();
 
         let chunks = filtered_books.chunks(WRITE_SIZE);
@@ -61,8 +60,8 @@ impl <R: BookRepository> UpsertBookWriter<R> {
 }
 
 impl <R: BookRepository> Writer for UpsertBookWriter<R> {
-    fn write(&self, books: &[&Book]) -> Vec<Book> {
-        let mut exists = get_target_books(&self.repository, &books);
+    fn write(&self, books: &[Book]) -> Vec<Book> {
+        let mut exists = get_target_books(&self.repository, books);
 
         let mut new_books: Vec<&Book> = vec![];
         let mut update_books: Vec<Book> = vec![];
@@ -92,11 +91,12 @@ impl <R: BookRepository> Writer for UpsertBookWriter<R> {
     }
 }
 
-fn get_target_books<R>(repository: &R, target: &[&Book]) -> HashMap<String, Book>
+fn get_target_books<R>(repository: &R, target: &[Book]) -> HashMap<String, Book>
 where
     R: BookRepository
 {
-    repository.find_by_isbn(target.iter().map(|b| b.isbn.as_str())).into_iter()
+    repository.find_by_isbn(target.iter().map(|b| b.isbn.as_str()))
+        .into_iter()
         .map(|b| (b.isbn.clone(), b))
         .collect::<HashMap<String, Book>>()
 }

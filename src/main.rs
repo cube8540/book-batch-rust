@@ -23,67 +23,67 @@ fn main() {
     match args.job {
         JobName::NLGO => {
             let (reader, writer, filter) =
-                create_nlgo_job_attr(&connection);
+                create_nlgo_job_attr(connection.clone());
             let job = procedure::Job::builder()
-                .reader(&reader)
-                .writer(&writer)
-                .filter(&filter)
+                .reader(Box::new(reader))
+                .writer(Box::new(writer))
+                .filter(Box::new(filter))
                 .build()
                 .unwrap();
 
             let publishers = publisher_repository.get_all();
             for publisher in publishers {
                 let parameter = procedure::Parameter::builder()
-                    .from(&from)
-                    .to(&to)
-                    .publisher(&publisher);
+                    .from(from)
+                    .to(to)
+                    .publisher(publisher);
                 job.run(&parameter.build());
             }
         }
         JobName::ALADIN => {
             let (reader, writer, filter) =
-                create_aladin_job_attr(&connection);
+                create_aladin_job_attr(connection.clone());
             let job = procedure::Job::builder()
-                .reader(&reader)
-                .writer(&writer)
-                .filter(&filter)
+                .reader(Box::new(reader))
+                .writer(Box::new(writer))
+                .filter(Box::new(filter))
                 .build()
                 .unwrap();
 
             let publishers = publisher_repository.get_all();
             for publisher in publishers {
                 let parameter = procedure::Parameter::builder()
-                    .publisher(&publisher);
+                    .publisher(publisher);
                 job.run(&parameter.build());
             }
         }
         JobName::NAVER => {
-            let (reader, writer) = create_naver_job_attr(&connection);
+            let (reader, writer) = create_naver_job_attr(connection.clone());
             let job = procedure::Job::builder()
-                .reader(&reader)
-                .writer(&writer)
+                .reader(Box::new(reader))
+                .writer(Box::new(writer))
                 .build()
                 .unwrap();
 
             let parameter = procedure::Parameter::builder()
-                .from(&from)
-                .to(&to);
+                .from(from)
+                .to(to);
             job.run(&parameter.build());
         },
         JobName::KYOBO => {
-            let (reader, writer) = create_kyobo_job_attr(&connection)
+            let (reader, writer) = create_kyobo_job_attr(connection.clone())
                 .unwrap_or_else(|err| {
                     error!("{:?}", err);
                     std::process::exit(1);
                 });
             let job = procedure::Job::builder()
-                .reader(&reader)
-                .writer(&writer)
+                .reader(Box::new(reader))
+                .writer(Box::new(writer))
                 .build()
                 .unwrap();
             let parameter = procedure::Parameter::builder()
-                .from(&from)
-                .to(&to);
+                .from(from)
+                .to(to);
             job.run(&parameter.build());
         }
     }

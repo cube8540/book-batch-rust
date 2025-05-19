@@ -83,31 +83,31 @@ impl Argument {
 
 
 
-pub fn create_nlgo_job_attr(connection: &Pool<ConnectionManager<PgConnection>>) -> (impl Reader, impl Writer, impl Filter) {
+pub fn create_nlgo_job_attr(connection: Pool<ConnectionManager<PgConnection>>) -> (impl Reader, impl Writer, impl Filter) {
     let client = provider::api::nlgo::new_client()
         .expect("Failed to create nlgo client");
     let nlgo_reader = procedure::reader::nlgo::new(client);
     let writer = procedure::writer::NewBookOnlyWriter::new(
         book::repository::diesel::book::new(connection.clone())
     );
-    let filter_chain = create_filter_chain(&connection);
+    let filter_chain = create_filter_chain(connection.clone());
 
     (nlgo_reader, writer, filter_chain)
 }
 
-pub fn create_aladin_job_attr(connection: &Pool<ConnectionManager<PgConnection>>) -> (impl Reader, impl Writer, impl Filter) {
+pub fn create_aladin_job_attr(connection: Pool<ConnectionManager<PgConnection>>) -> (impl Reader, impl Writer, impl Filter) {
     let client = provider::api::aladin::new_client()
         .expect("Failed to create aladin client");
     let aladin_reader = procedure::reader::aladin::new(client);
     let writer = procedure::writer::UpsertBookWriter::new(
         book::repository::diesel::book::new(connection.clone())
     );
-    let filter_chain = create_filter_chain(&connection);
+    let filter_chain = create_filter_chain(connection.clone());
 
     (aladin_reader, writer, filter_chain)
 }
 
-pub fn create_naver_job_attr(connection: &Pool<ConnectionManager<PgConnection>>) -> (impl Reader, impl Writer) {
+pub fn create_naver_job_attr(connection: Pool<ConnectionManager<PgConnection>>) -> (impl Reader, impl Writer) {
     let client = provider::api::naver::new_client()
         .expect("Failed to create naver client");
     let naver_reader = procedure::reader::naver::new(
@@ -121,7 +121,7 @@ pub fn create_naver_job_attr(connection: &Pool<ConnectionManager<PgConnection>>)
     (naver_reader, writer)
 }
 
-pub fn create_kyobo_job_attr(connection: &Pool<ConnectionManager<PgConnection>>) -> Result<(impl Reader, impl Writer), ArgumentError> {
+pub fn create_kyobo_job_attr(connection: Pool<ConnectionManager<PgConnection>>) -> Result<(impl Reader, impl Writer), ArgumentError> {
     let mut login_provider = provider::html::kyobo::chrome::new_provider()
         .expect("Failed to create kyobo login provider");
 
@@ -140,7 +140,7 @@ pub fn create_kyobo_job_attr(connection: &Pool<ConnectionManager<PgConnection>>)
     Ok((kyobo_reader, writer))
 }
 
-fn create_filter_chain(connection: &Pool<ConnectionManager<PgConnection>>) -> procedure::filter::FilterChain {
+fn create_filter_chain(connection: Pool<ConnectionManager<PgConnection>>) -> procedure::filter::FilterChain {
     let empty_isbn_filter = procedure::filter::EmptyIsbnFilter {};
     let origin_data_filter = procedure::filter::OriginDataFilter::new(
         book::repository::diesel::book_origin_filter::new(connection.clone())

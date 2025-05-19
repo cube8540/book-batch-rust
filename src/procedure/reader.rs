@@ -15,7 +15,7 @@ pub trait Reader {
 pub trait FromPublisher: Reader {
 
     fn read_books(&self, parameter: &Parameter) -> Vec<Book> {
-        let publisher = parameter.publisher.unwrap();
+        let publisher = parameter.publisher().as_ref().unwrap();
         if let Some(keywords) = publisher.keywords.get(&self.site()) {
             keywords.iter()
                 .flat_map(|keyword| {

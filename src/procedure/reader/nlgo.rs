@@ -28,8 +28,8 @@ impl FromPublisher for NlgoReader {
                 page,
                 size: 500,
                 query: keyword.to_string(),
-                start_date: parameter.from.copied(),
-                end_date: parameter.to.copied(),
+                start_date: parameter.from().clone(),
+                end_date: parameter.to().clone(),
             };
             let response = self.client.get_books(&request).unwrap(); // TODO 에러 처리 해야함
             if !response.books.is_empty() {

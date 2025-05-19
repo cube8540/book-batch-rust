@@ -33,7 +33,8 @@ where
     P: kyobo::LoginProvider
 {
     fn read_books(&self, parameter: &Parameter) -> Vec<Book> {
-        let books = self.repository.find_by_pub_date(parameter.from.unwrap(), parameter.to.unwrap());
+        let (from, to) = (parameter.from().as_ref().unwrap(), parameter.to().as_ref().unwrap());
+        let books = self.repository.find_by_pub_date(from, to);
         books.iter()
             .filter(|book| book.actual_pub_date.is_some())
             .map(|book| {

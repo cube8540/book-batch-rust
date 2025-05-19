@@ -2,12 +2,7 @@ use crate::book::repository::BookOriginFilterRepository;
 use crate::book::Book;
 
 pub trait Filter {
-
-    fn do_filter<'job, 'input>(
-        &self,
-        books: &'input [&'job Book]
-    ) -> Vec<&'job Book>
-    where 'job: 'input;
+    fn do_filter(&self, books: Vec<Book>) -> Vec<Book>;
 }
 
 pub struct FilterChain {
@@ -26,12 +21,9 @@ impl FilterChain {
 }
 
 impl Filter for FilterChain {
-    fn do_filter<'job, 'input>(&self, books: &'input [&'job Book]) -> Vec<&'job Book>
-    where
-        'job: 'input
-    {
+    fn do_filter(&self, books: Vec<Book>) -> Vec<Book> {
         if self.filters.is_empty() {
-            return books.to_vec()
+            return books;
         }
 
         let mut filtered_books = self.filters[0].do_filter(books);
@@ -40,9 +32,9 @@ impl Filter for FilterChain {
         }
 
         for filter in &self.filters[1..] {
-            filtered_books = filter.do_filter(&filtered_books);
+            filtered_books = filter.do_filter(filtered_books);
         }
-        
+
         filtered_books
     }
 }
@@ -50,13 +42,9 @@ impl Filter for FilterChain {
 pub struct EmptyIsbnFilter;
 
 impl Filter for EmptyIsbnFilter {
-    fn do_filter<'job, 'input>(&self, books: &'input [&'job Book]) -> Vec<&'job Book>
-    where
-        'job: 'input
-    {
-        books.iter()
+    fn do_filter(&self, books: Vec<Book>) -> Vec<Book> {
+        books.into_iter()
             .filter(|book| !book.isbn.is_empty())
-            .cloned()
             .collect()
     }
 }
@@ -81,14 +69,10 @@ impl<R> Filter for OriginDataFilter<R>
 where
     R: BookOriginFilterRepository
 {
-    fn do_filter<'job, 'input>(&self, books: &'input [&'job Book]) -> Vec<&'job Book>
-    where
-        'job: 'input
-    {
+    fn do_filter(&self, books: Vec<Book>) -> Vec<Book> {
         let filters = self.repository.get_root_filters();
-        books.iter()
+        books.into_iter()
             .filter(|book| filters.iter().all(|filter| filter.borrow().validate(book)))
-            .cloned()
             .collect()
     }
 }
