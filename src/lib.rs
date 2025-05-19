@@ -8,10 +8,10 @@ use r2d2::Pool;
 use std::fmt;
 use std::fmt::Formatter;
 
-pub mod book;
 pub mod procedure;
 pub mod configs;
 pub mod provider;
+pub mod book;
 
 #[derive(Debug)]
 pub enum ArgumentError {
