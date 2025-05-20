@@ -335,5 +335,5 @@ impl Filter {
 pub trait FilterRepository {
 
     /// 모든 필터 정보를 가져온다.
-    fn find_filters(&self) -> Vec<Filter>;
+    fn find_filters(&self) -> Vec<(Site, Filter)>;
 }
