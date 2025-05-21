@@ -205,7 +205,7 @@ pub trait SeriesRepository {
     fn new_series(&self, series: &[Series]) -> Vec<Series>;
 
     /// 전달 받은 시리즈 정보로 저장소의 시리지를 업데이트 한다.
-    fn update_series(&self, series: &Series) -> i32;
+    fn update_series(&self, series: &Series) -> usize;
 }
 
 pub type Raw = HashMap<String, String>;
@@ -384,7 +384,7 @@ pub trait BookRepository {
     fn save_books(&self, books: &[Book]) -> Vec<Book>;
 
     /// 전달 받은 도서 정보로 저장소의 도서를 업데이트 한다.
-    fn update_book(&self, book: &Book) -> i32;
+    fn update_book(&self, book: &Book) -> usize;
 
     /// 시리즈화 되지 않은(시리즈 설정이 되지 않은) 도서를 limit 개수만큼 찾는다.
     fn find_series_unorganized(&self, limit: i32) -> Vec<Book>;
