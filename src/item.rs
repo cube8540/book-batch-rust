@@ -1,17 +1,24 @@
-mod repo;
-mod diesel;
+pub mod repo;
 
 use regex::Regex;
 use std::collections::HashMap;
+use std::fmt;
+use std::fmt::{Display, Formatter};
 
 /// Item 모듈에서 사용할 에러 열거
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ItemError {
     /// 필수 데이터가 입력 되지 않음
     RequireArgumentMissing(String),
 
     /// 알 수 없는 열거형 코드
     UnknownCode(String)
+}
+
+impl Display for ItemError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", self)
+    }
 }
 
 /// 도서 데이터의 출처

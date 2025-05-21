@@ -3,6 +3,7 @@ use diesel::PgConnection;
 use r2d2::Pool;
 use std::env;
 use std::env::VarError;
+use mongodb::sync::Client;
 
 mod logging;
 
@@ -24,6 +25,12 @@ pub fn connect_to_postgres() -> Pool<ConnectionManager<PgConnection>> {
         .test_on_check_out(true)
         .build(manager)
         .expect("Could not build connection pool")
+}
+
+pub fn connect_to_mongo() -> Client {
+    let url = env::var("MONGO_URL").expect("MONGO_URL must be set");
+    
+    Client::with_uri_str(&url).expect("Could not connect to MongoDB")
 }
 
 /// 프로그램에서 사용할 로깅 옵션을 설정한다.
