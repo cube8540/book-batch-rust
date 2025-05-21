@@ -3,8 +3,9 @@
 
 [print_schema]
 schema = "books"
-file = "src/book/schema.rs"
+file = "src/item/diesel/schema.rs"
 custom_type_derives = ["diesel::query_builder::QueryId", "Clone"]
+filter = { "except_tables" = ["book_origin_data"] }
 
 [migrations_directory]
-dir = "/Users/we/Workspace/temp/book-batch-rust/migrations"
+dir = "migrations"

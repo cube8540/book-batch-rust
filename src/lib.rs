@@ -12,7 +12,7 @@ pub mod procedure;
 pub mod configs;
 pub mod provider;
 pub mod book;
-mod item;
+pub mod item;
 
 #[derive(Debug)]
 pub enum ArgumentError {

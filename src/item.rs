@@ -1,3 +1,6 @@
+mod repo;
+mod diesel;
+
 use regex::Regex;
 use std::collections::HashMap;
 
@@ -7,7 +10,7 @@ pub enum ItemError {
     /// 필수 데이터가 입력 되지 않음
     RequireArgumentMissing(String),
 
-    /// 알 수 없는 코드
+    /// 알 수 없는 열거형 코드
     UnknownCode(String)
 }
 
@@ -84,6 +87,127 @@ pub trait PublisherRepository {
     fn get_all(&self) -> Vec<Publisher>;
 }
 
+/// 도서 시리즈
+pub struct Series {
+    id: u64,
+    title: Option<String>,
+    isbn: Option<String>,
+    vec: Option<Vec<i8>>,
+    registered_at: Option<chrono::NaiveDateTime>,
+    modified_at: Option<chrono::NaiveDateTime>
+}
+
+impl Series {
+    pub fn builder() -> SeriesBuilder {
+        SeriesBuilder::new()
+    }
+
+    pub fn id(&self) -> u64 {
+        self.id
+    }
+
+    pub fn title(&self) -> &Option<String> {
+        &self.title
+    }
+
+    pub fn isbn(&self) -> &Option<String> {
+        &self.isbn
+    }
+
+    pub fn vec(&self) -> &Option<Vec<i8>> {
+        &self.vec
+    }
+
+    pub fn registered_at(&self) -> Option<chrono::NaiveDateTime> {
+        self.registered_at
+    }
+
+    pub fn modified_at(&self) -> Option<chrono::NaiveDateTime> {
+        self.modified_at
+    }
+}
+
+pub struct SeriesBuilder {
+    id: Option<u64>,
+    title: Option<String>,
+    isbn: Option<String>,
+    vec: Option<Vec<i8>>,
+    registered_at: Option<chrono::NaiveDateTime>,
+    modified_at: Option<chrono::NaiveDateTime>,
+}
+
+impl SeriesBuilder {
+    pub fn new() -> Self {
+        Self {
+            id: None,
+            title: None,
+            isbn: None,
+            vec: None,
+            registered_at: None,
+            modified_at: None,
+        }
+    }
+
+    pub fn id(mut self, id: u64) -> Self {
+        self.id = Some(id);
+        self
+    }
+
+    pub fn title(mut self, title: String) -> Self {
+        self.title = Some(title);
+        self
+    }
+
+    pub fn isbn(mut self, isbn: String) -> Self {
+        self.isbn = Some(isbn);
+        self
+    }
+
+    pub fn vec(mut self, vec: Vec<i8>) -> Self {
+        self.vec = Some(vec);
+        self
+    }
+
+    pub fn registered_at(mut self, registered_at: chrono::NaiveDateTime) -> Self {
+        self.registered_at = Some(registered_at);
+        self
+    }
+
+    pub fn modified_at(mut self, modified_at: chrono::NaiveDateTime) -> Self {
+        self.modified_at = Some(modified_at);
+        self
+    }
+
+    pub fn build(self) -> Result<Series, ItemError> {
+        Ok(Series {
+            id: self.id.unwrap_or(0),
+            title: self.title,
+            isbn: self.isbn,
+            vec: self.vec,
+            registered_at: self.registered_at,
+            modified_at: self.modified_at,
+        })
+    }
+}
+
+/// 시리즈 저장소
+pub trait SeriesRepository {
+
+    /// ISBN 리스트를 받아 해당 ISBN을 가지는 시리즈를 찾는다.
+    fn find_by_isbn(&self, isbn: &[&str]) -> Vec<Series>;
+
+    /// 전달 받은 시리즈의 백터([`Series::vec`])와 가장 유사한 시리즈를 limit 개수 만큼 찾는다.
+    ///
+    /// 결과는 튜플로 (유사 시리즈 - 유사도)로 묶여 반환된다.
+    fn similarity(&self, series: &Series, limit: i32) -> Vec<(Series, f32)>;
+
+    /// 전달 받은 시리즈들을 저장소에 저장한다.
+    fn new_series(&self, series: &[Series]) -> Vec<Series>;
+
+    /// 전달 받은 시리즈 정보로 저장소의 시리지를 업데이트 한다.
+    fn update_series(&self, series: &Series) -> i32;
+}
+
 pub type Raw = HashMap<String, String>;
 
 /// 도서의 원본 데이터 타입
@@ -96,10 +220,13 @@ pub struct Book {
     id: u64,
     isbn: String,
     publisher_id: u64,
+    series_id: Option<u64>,
     title: String,
     scheduled_pub_date: Option<chrono::NaiveDate>,
     actual_pub_date: Option<chrono::NaiveDate>,
-    originals: Originals
+    originals: Originals,
+    registered_at : Option<chrono::NaiveDateTime>,
+    modified_at: Option<chrono::NaiveDateTime>,
 }
 
 impl Book {
@@ -113,6 +240,10 @@ impl Book {
 
     pub fn publisher_id(&self) -> u64 {
         self.publisher_id
+    }
+
+    pub fn series_id(&self) -> Option<u64> {
+        self.series_id
     }
 
     pub fn title(&self) -> &str {
@@ -130,6 +261,14 @@ impl Book {
     pub fn originals(&self) -> &Originals {
         &self.originals
     }
+
+    pub fn registered_at(&self) -> Option<chrono::NaiveDateTime> {
+        self.registered_at
+    }
+
+    pub fn modified_at(&self) -> Option<chrono::NaiveDateTime> {
+        self.modified_at
+    }
 }
 
 /// Book 빌더
@@ -137,10 +276,13 @@ pub struct BookBuilder {
     id: Option<u64>,
     isbn: Option<String>,
     publisher_id: Option<u64>,
+    series_id: Option<u64>,
     title: Option<String>,
     scheduled_pub_date: Option<chrono::NaiveDate>,
     actual_pub_date: Option<chrono::NaiveDate>,
     originals: Originals,
+    registered_at: Option<chrono::NaiveDateTime>,
+    modified_at: Option<chrono::NaiveDateTime>,
 }
 
 impl BookBuilder {
@@ -149,10 +291,13 @@ impl BookBuilder {
             id: None,
             isbn: None,
             publisher_id: None,
+            series_id: None,
             title: None,
             scheduled_pub_date: None,
             actual_pub_date: None,
             originals: HashMap::new(),
+            registered_at: None,
+            modified_at: None,
         }
     }
 
@@ -191,6 +336,21 @@ impl BookBuilder {
         self
     }
 
+    pub fn series_id(mut self, series_id: u64) -> Self {
+        self.series_id = Some(series_id);
+        self
+    }
+
+    pub fn registered_at(mut self, registered_at: chrono::NaiveDateTime) -> Self {
+        self.registered_at = Some(registered_at);
+        self
+    }
+
+    pub fn modified_at(mut self, modified_at: chrono::NaiveDateTime) -> Self {
+        self.modified_at = Some(modified_at);
+        self
+    }
+
     pub fn build(self) -> Result<Book, ItemError> {
         let isbn = self.isbn.ok_or(ItemError::RequireArgumentMissing("isbn".to_owned()))?;
         let publisher_id = self.publisher_id.ok_or(ItemError::RequireArgumentMissing("publisher_id".to_owned()))?;
@@ -200,10 +360,13 @@ impl BookBuilder {
             id: self.id.unwrap_or(0),
             isbn,
             publisher_id,
+            series_id: self.series_id,
             title,
             scheduled_pub_date: self.scheduled_pub_date,
             actual_pub_date: self.actual_pub_date,
             originals: self.originals,
+            registered_at: self.registered_at,
+            modified_at: self.modified_at,
         })
     }
 }
@@ -218,14 +381,19 @@ pub trait BookRepository {
     fn find_by_isbn(&self, isbn: &[&str]) -> Vec<Book>;
 
     /// 전달 받은 도서를 모두 저장소에 저장한다.
-    fn save_books(&self, books: &[Book]) -> Result<(), ()>;
+    fn save_books(&self, books: &[Book]) -> Vec<Book>;
 
-    /// 전달 받은 데이터로 도서 정보를 업데이트 한다.
-    ///
-    /// 업데이트 될 도서는 [`Book::id`]로 정해진다.
-    fn update_book(&self, book: &Book) -> Result<(), ()>;
+    /// 전달 받은 도서 정보로 저장소의 도서를 업데이트 한다.
+    fn update_book(&self, book: &Book) -> i32;
+
+    /// 시리즈화 되지 않은(시리즈 설정이 되지 않은) 도서를 limit 개수만큼 찾는다.
+    fn find_series_unorganized(&self, limit: i32) -> Vec<Book>;
+
+    /// 전달 받은 시리즈로 설정된 도서를 찾는다.
+    fn find_by_series_id(&self, series_id: u64) -> Vec<Book>;
 }
 
+/// 유효성 체크에 사용할 연산자 열거
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 pub enum Operator {
     AND,
@@ -234,6 +402,7 @@ pub enum Operator {
     NAND
 }
 
+/// 원본 데이터 유효성 검증 피연산자 트레이트
 pub trait Operand {
     fn test(&self, raw: &Raw) -> bool;
 }
@@ -244,7 +413,29 @@ impl <T> Operand for T where T: Fn(&Raw) -> bool {
     }
 }
 
+/// 원본 데이터 유효성 검증의 연산식
+/// 가지고 있는 연산자로 피연산자들을 연산한다.
+///
+/// # Example
+/// ```
+/// use std::collections::HashMap;
+/// use book_batch_rust::item::{Expression, Operand, Operator, Raw};
+///
+/// let raw: Raw = HashMap::from([("test_property".to_owned(), "1234".to_owned())]);
+///
+/// let operand1 = Box::new(|raw: &Raw| raw.get("test_property").is_some());
+/// let operand2 = Box::new(|raw: &Raw| raw.get("test_property").map(|v| v == "1234").unwrap_or(false));
+///
+/// let and_expression = Expression::new(Operator::AND, vec![operand1, operand2]);
+/// assert!(and_expression.test(&raw));
+/// ```
 pub struct Expression(Operator, Vec<Box<dyn Operand>>);
+
+impl Expression {
+    pub fn new(op: Operator, operands: Vec<Box<dyn Operand>>) -> Self {
+        Self(op, operands)
+    }
+}
 
 impl Operand for Expression {
 
@@ -259,30 +450,80 @@ impl Operand for Expression {
     }
 }
 
+/// 도서 원본 데이터 필터 규칙
+/// 원본 데이터의 검증 방식을 가지고 있으며 [`FilterRule::to_predicate`]를 통해 피연산자를 변환하여 도서의 유효성 검증을 할 수 있다.
+///
+/// [`FilterRule`]은 아래와 같이 두 가지 타입으로 구분 된다.
+///
+/// ## 피연산자
+/// 연산자와, 피연산자 목록은 [`None`], 피연산 규칙을 가지고 있을 경우 피연산자로 구분된다.
+/// 피연산자는 자신이 가진 규칙을 이용해 실제 원본 데이터의 유효성 검증을 한다.
+///
+/// ### Example
+/// ```
+/// use std::collections::HashMap;
+/// use regex::Regex;
+/// use book_batch_rust::item::{FilterRule, Raw};
+///
+/// let raw: Raw = HashMap::from([("test_property".to_owned(), "1234".to_owned())]);
+/// let rule = FilterRule::new_operand("연산자 테스트", "test_property", Regex::new("[0-9]").unwrap());
+/// let operand = rule.to_predicate();
+///
+/// assert!(operand.test(&raw))
+/// ```
+///
+/// ## 연산식
+/// 피연산 규칙이 [`None`], 연산자와 피연산자 목록을 가지고 있으면 연산식으로 구분된다.
+/// 연산식은 자신이 가지고 있는 피연산자 목록을 이용하여 원본 데이터의 유효성 검사를 하고, 그렇게 얻은 bool 값들을 연산자를 이용해 유효성 검증을 한다.
+///
+/// ### Example
+/// ```
+/// use std::collections::HashMap;
+/// use regex::Regex;
+/// use book_batch_rust::item::{FilterRule, Operator, Raw};
+///
+/// let raw: Raw = HashMap::from([
+///     ("first".to_owned(), "1234".to_owned()),
+///     ("second".to_owned(), "abcd".to_owned())
+/// ]);
+///
+/// let first_rule = FilterRule::new_operand("first rule", "first", Regex::new("[0-9]").unwrap());
+/// let second_rule = FilterRule::new_operand("second rule", "second", Regex::new("^[a-zA-Z]+$").unwrap());
+///
+/// let mut rule = FilterRule::new_operator("연산식 테스트", Operator::AND);
+/// rule.add_operand(first_rule);
+/// rule.add_operand(second_rule);
+///
+/// let operand = rule.to_predicate();
+/// assert!(operand.test(&raw));
+/// ```
 #[derive(Debug, Clone)]
-pub struct Filter {
+pub struct FilterRule {
     name: String,
 
+    // 연산자
     operator: Option<Operator>,
+    // 피연산 규칙
     rule: Option<(String, Regex)>,
 
-    operands: Vec<Filter>
+    // 연산자 목록
+    operands: Vec<FilterRule>
 }
 
-impl Filter {
+impl FilterRule {
 
-    pub fn new_operand(name: String, property_name: String, regex: Regex) -> Self {
+    pub fn new_operand(name: &str, property_name: &str, regex: Regex) -> Self {
         Self {
-            name,
+            name: name.to_owned(),
             operator: None,
-            rule: Some((property_name, regex)),
+            rule: Some((property_name.to_owned(), regex)),
             operands: Vec::new()
         }
     }
 
-    pub fn new_operator(name: String, operator: Operator) -> Self {
+    pub fn new_operator(name: &str, operator: Operator) -> Self {
         Self {
-            name,
+            name: name.to_owned(),
             operator: Some(operator),
             rule: None,
             operands: Vec::new()
@@ -301,16 +542,16 @@ impl Filter {
         &self.rule
     }
 
-    pub fn operands(&self) -> &Vec<Filter> {
+    pub fn operands(&self) -> &Vec<FilterRule> {
         &self.operands
     }
 
-    pub fn add_operand(&mut self, operand: Filter) {
+    pub fn add_operand(&mut self, operand: FilterRule) {
         self.operands.push(operand);
     }
 }
 
-impl Filter {
+impl FilterRule {
 
     pub fn to_predicate(&self) -> Box<dyn Operand> {
         if let Some(operator) = self.operator {
@@ -334,6 +575,6 @@ impl Filter {
 /// 필터 저장소
 pub trait FilterRepository {
 
-    /// 모든 필터 정보를 가져온다.
-    fn find_filters(&self) -> Vec<(Site, Filter)>;
+    /// 특정 사이트의 데이터를 필터링하는 규칙을 찾는다.
+    fn find_by_site(&self, site: Site) -> Vec<FilterRule>;
 }
