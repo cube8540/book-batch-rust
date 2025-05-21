@@ -45,11 +45,9 @@ impl ComposeBookRepository {
         let mut map: HashMap<i64, &mut BookBuilder> = HashMap::new();
 
         for builder in builders {
-            if let Some(id) = builder.id {
-                let id = id as i64;
-                books_ids.push(id);
-                map.insert(id, builder);
-            }
+            let id = builder.id.unwrap() as i64;
+            books_ids.push(id);
+            map.insert(id, builder);
         }
 
         let origins = self.origin_store.find_by_book_id(&books_ids)
@@ -121,13 +119,13 @@ impl BookRepository for ComposeBookRepository {
             for saved_book in saved_books.iter_mut() {
                 let isbn = saved_book.isbn.as_ref().map(|isbn| isbn.clone()).unwrap();
                 if let Some(original) = isbn_with_origin.get(&isbn) {
-                    let saved_book_id = saved_book.id.unwrap();
+                    let saved_book_id = saved_book.id.unwrap() as i64;
 
                     _ = self.origin_store.new_original_data(saved_book_id, original)
                         .map_err(|e| error!("{:?}", e));
 
                     let saved_origins = self.origin_store
-                        .find_by_book_id(&[saved_book_id as i64])
+                        .find_by_book_id(&[saved_book_id])
                         .unwrap_or_else(|e| logging_with_default_vec(e));
 
                     for origins in saved_origins {
@@ -148,11 +146,12 @@ impl BookRepository for ComposeBookRepository {
             .unwrap_or_else(|e| logging_with_default_usize(e));
 
         if self.with_origin {
+            let book_id = book.id as i64;
             for (site, _) in book.originals.iter() {
-                _ = self.origin_store.delete_site(book.id, site)
+                _ = self.origin_store.delete_site(book_id, site)
                     .unwrap_or_else(|e| logging_with_default_usize(e));
             }
-            updated_count += self.origin_store.new_original_data(book.id, book.originals())
+            updated_count += self.origin_store.new_original_data(book_id, book.originals())
                 .unwrap_or_else(|e| logging_with_default_usize(e));
         }
 

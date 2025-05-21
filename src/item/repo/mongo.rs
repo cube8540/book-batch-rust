@@ -132,10 +132,10 @@ impl BookOriginDataStore {
         Ok(docs)
     }
 
-    pub fn new_original_data(&self, book_id: u64, origins: &Originals) -> Result<usize, Error> {
+    pub fn new_original_data(&self, book_id: i64, origins: &Originals) -> Result<usize, Error> {
         let docs = origins.into_iter()
             .map(|(site, raw)| {
-                let mut origin = BookOriginData::new(book_id as i64, site.clone());
+                let mut origin = BookOriginData::new(book_id, site.clone());
                 for (k, v) in raw {
                     origin.add_origin(k, serde_json::Value::String(v.to_owned()));
                 }
@@ -152,8 +152,8 @@ impl BookOriginDataStore {
         Ok(results.inserted_ids.len())
     }
 
-    pub fn delete_site(&self, book_id: u64, site: &Site) -> Result<usize, Error> {
-        let doc = doc! { "book_id": book_id as i64, "site": site.to_code_str() };
+    pub fn delete_site(&self, book_id: i64, site: &Site) -> Result<usize, Error> {
+        let doc = doc! { "book_id": book_id, "site": site.to_code_str() };
 
         let collection = self.client
             .database("workspace")
