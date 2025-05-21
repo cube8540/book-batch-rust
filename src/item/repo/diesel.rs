@@ -1,4 +1,4 @@
-use crate::item::Book;
+use crate::item::{Book, BookBuilder};
 use diesel::prelude::*;
 use diesel::r2d2::ConnectionManager;
 use r2d2::Pool;
@@ -26,6 +26,32 @@ pub struct BookEntity {
 
     pub registered_at : chrono::NaiveDateTime,
     pub modified_at: Option<chrono::NaiveDateTime>,
+}
+
+impl BookEntity {
+    pub fn to_domain_builder(&self) -> BookBuilder {
+        let mut builder = Book::builder()
+            .id(self.id as u64)
+            .isbn(self.isbn.clone())
+            .publisher_id(self.publisher_id as u64)
+            .title(self.title.clone())
+            .registered_at(self.registered_at.clone());
+
+        if let Some(series_id) = self.series_id {
+            builder = builder.series_id(series_id as u64);
+        }
+        if let Some(scheduled_pub_date) = self.scheduled_pub_date {
+            builder = builder.scheduled_pub_date(scheduled_pub_date);
+        }
+        if let Some(actual_pub_date) = self.actual_pub_date {
+            builder = builder.actual_pub_date(actual_pub_date);
+        }
+        if let Some(modified_at) = self.modified_at {
+            builder = builder.modified_at(modified_at);
+        }
+        
+        builder
+    }
 }
 
 #[derive(Insertable)]

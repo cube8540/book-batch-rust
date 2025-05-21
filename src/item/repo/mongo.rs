@@ -1,9 +1,8 @@
-use crate::item::Site;
+use crate::item::{Originals, Raw, Site};
 use mongodb::bson::doc;
 use mongodb::sync::Client;
 use serde::de::Visitor;
-use serde::{Deserializer, Serializer};
-use serde_with::serde_derive::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_with::{serde_as, DeserializeAs, SerializeAs};
 use std::collections::HashMap;
 use std::fmt::Formatter;
@@ -62,7 +61,46 @@ pub struct BookOriginData {
     site: Site,
 
     #[serde(flatten)]
-    original: HashMap<String, String>,
+    original: HashMap<String, serde_json::Value>,
+}
+
+impl BookOriginData {
+
+    pub fn to_domain(&self) -> (Site, Raw) {
+        let original = self.original.iter()
+            .filter_map(|(k, v)| {
+                v.as_str().map(|v| (k.clone(), v.to_owned()))
+            })
+            .collect::<HashMap<_, _>>();
+
+        (self.site, original)
+    }
+}
+
+impl BookOriginData {
+    pub fn new(book_id: i64, site: Site) -> Self {
+        Self {
+            book_id,
+            site,
+            original: HashMap::new(),
+        }
+    }
+
+    pub fn book_id(&self) -> i64 {
+        self.book_id
+    }
+
+    pub fn site(&self) -> Site {
+        self.site
+    }
+
+    pub fn original(&self) -> &HashMap<String, serde_json::Value> {
+        &self.original
+    }
+
+    pub fn add_origin(&mut self, key: &str, value: serde_json::Value) {
+        self.original.insert(key.to_owned(), value);
+    }
 }
 
 pub struct BookOriginDataStore {
@@ -92,5 +130,38 @@ impl BookOriginDataStore {
             .map_err(|e| Error::SqlExecuteError(e.to_string()))?;
 
         Ok(docs)
+    }
+
+    pub fn new_original_data(&self, book_id: u64, origins: &Originals) -> Result<usize, Error> {
+        let docs = origins.into_iter()
+            .map(|(site, raw)| {
+                let mut origin = BookOriginData::new(book_id as i64, site.clone());
+                for (k, v) in raw {
+                    origin.add_origin(k, serde_json::Value::String(v.to_owned()));
+                }
+                origin
+            });
+
+        let collection = self.client
+            .database("workspace")
+            .collection::<BookOriginData>("book_origin_data");
+
+        let results = collection.insert_many(docs).run()
+            .map_err(|e| Error::SqlExecuteError(e.to_string()))?;
+
+        Ok(results.inserted_ids.len())
+    }
+
+    pub fn delete_site(&self, book_id: u64, site: &Site) -> Result<usize, Error> {
+        let doc = doc! { "book_id": book_id as i64, "site": site.to_code_str() };
+
+        let collection = self.client
+            .database("workspace")
+            .collection::<BookOriginData>("book_origin_data");
+
+        let results = collection.delete_many(doc).run()
+            .map_err(|e| Error::SqlExecuteError(e.to_string()))?;
+
+        Ok(results.deleted_count as usize)
     }
 }

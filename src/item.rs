@@ -237,6 +237,10 @@ pub struct Book {
 }
 
 impl Book {
+    pub fn builder() -> BookBuilder {
+        BookBuilder::new()
+    }
+    
     pub fn id(&self) -> u64 {
         self.id
     }
@@ -341,6 +345,10 @@ impl BookBuilder {
     pub fn add_original(mut self, site: Site, raw: Raw) -> Self {
         self.originals.insert(site, raw);
         self
+    }
+    
+    pub fn add_original_without_ownership(&mut self, site: Site, raw: Raw) {
+        self.originals.insert(site, raw);
     }
 
     pub fn series_id(mut self, series_id: u64) -> Self {
