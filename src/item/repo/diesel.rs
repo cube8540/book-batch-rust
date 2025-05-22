@@ -1,4 +1,5 @@
 use crate::item::{Book, BookBuilder};
+use diesel::associations::HasTable;
 use diesel::prelude::*;
 use diesel::r2d2::ConnectionManager;
 use r2d2::Pool;
@@ -210,5 +211,55 @@ impl BookPgStore {
             .map_err(|e| Error::SqlExecuteError(e.to_string()))?;
 
         Ok(result)
+    }
+}
+
+#[derive(Queryable, Selectable)]
+#[diesel(table_name = schema::books::publisher)]
+#[diesel(check_for_backend(diesel::pg::Pg))]
+pub struct PublisherEntity {
+    pub id: i64,
+    pub name: String,
+}
+
+#[derive(Queryable, Selectable)]
+#[diesel(table_name = schema::books::publisher_keyword)]
+#[diesel(primary_key(publisher_id, site, keyword))]
+#[diesel(belongs_to(PublisherEntity, foreign_key = publisher_id))]
+#[diesel(check_for_backend(diesel::pg::Pg))]
+pub struct PublisherKeywordEntity {
+    pub publisher_id: i64,
+    pub site: String,
+    pub keyword: String,
+}
+
+pub struct PublisherPgStore {
+    pool: Pool<ConnectionManager<PgConnection>>
+}
+
+impl PublisherPgStore {
+    pub fn new(pool: Pool<ConnectionManager<PgConnection>>) -> Self {
+        Self { pool }
+    }
+}
+
+impl PublisherPgStore {
+    pub fn find_all(&self) -> Result<Vec<(PublisherEntity, Option<PublisherKeywordEntity>)>, Error> {
+        use schema::books::publisher;
+        use schema::books::publisher_keyword;
+
+        let mut connection = self.pool.get()
+            .map_err(|e| Error::ConnectError(e.to_string()))?;
+
+        let publisher_with_keywords = publisher::table
+            .left_join(publisher_keyword::table)
+            .select((
+                PublisherEntity::as_select(),
+                Option::<PublisherKeywordEntity>::as_select()
+            ))
+            .load::<(PublisherEntity, Option<PublisherKeywordEntity>)>(&mut connection)
+            .map_err(|e| Error::SqlExecuteError(e.to_string()))?;
+
+        Ok(publisher_with_keywords)
     }
 }

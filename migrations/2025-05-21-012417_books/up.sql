@@ -5,6 +5,15 @@ create table if not exists books.publisher(
     name varchar(128) not null
 );
 
+create table if not exists books.publisher_keywords(
+    publisher_id bigint not null,
+    site varchar(32) not null ,
+    keyword varchar(32) not null,
+
+    foreign key (publisher_id) references books.publisher(id),
+    primary key (publisher_id, site, keyword)
+)
+
 create table if not exists books.series(
     id bigserial not null primary key,
     name varchar(512),

@@ -1,7 +1,7 @@
 use crate::book::Original;
-use crate::item::repo::diesel::{BookEntity, BookPgStore};
+use crate::item::repo::diesel::{BookEntity, BookPgStore, PublisherPgStore};
 use crate::item::repo::mongo::BookOriginDataStore;
-use crate::item::{Book, BookBuilder, BookRepository, Site};
+use crate::item::{Book, BookBuilder, BookRepository, Publisher, PublisherRepository, Site};
 use chrono::NaiveDate;
 use ::diesel::r2d2::ConnectionManager;
 use ::diesel::PgConnection;
@@ -171,6 +171,43 @@ impl BookRepository for ComposeBookRepository {
         book_entities.into_iter()
             .map(|entity| compose_entity_with_original(entity, &mut originals))
             .collect()
+    }
+}
+
+pub struct DieselPublisherRepository {
+    store: PublisherPgStore
+}
+
+impl DieselPublisherRepository {
+    pub fn new(pool: Pool<ConnectionManager<PgConnection>>) -> Self {
+        Self {
+            store: PublisherPgStore::new(pool),
+        }
+    }
+}
+
+impl PublisherRepository for DieselPublisherRepository {
+
+    fn get_all(&self) -> Vec<Publisher> {
+        let publisher_with_keywords = self.store.find_all()
+            .unwrap_or_else(|e| logging_with_default_vec(e));
+        if publisher_with_keywords.len() == 0 {
+            return vec![];
+        }
+
+        let mut publisher_map: HashMap<i64, Publisher> = HashMap::new();
+        for (publisher, keyword) in publisher_with_keywords.iter() {
+            let publisher = publisher_map.entry(publisher.id)
+                .or_insert_with(|| {
+                    Publisher::without_keywords(publisher.id as u64, publisher.name.clone())
+                });
+
+            if let Some(keyword) = keyword {
+                publisher.add_keyword(Site::from_str(keyword.site.as_str()).unwrap(), keyword.keyword.clone());
+            }
+        }
+
+        publisher_map.into_values().collect()
     }
 }
 

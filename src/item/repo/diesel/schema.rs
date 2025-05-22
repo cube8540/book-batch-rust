@@ -50,9 +50,11 @@ pub mod books {
     }
 
     diesel::table! {
-        books.publisher_keyword (publisher_id, keyword) {
+        books.publisher_keyword (publisher_id, site, keyword) {
             publisher_id -> Int8,
-            #[max_length = 128]
+            #[max_length = 32]
+            site -> Varchar,
+            #[max_length = 32]
             keyword -> Varchar,
         }
     }
