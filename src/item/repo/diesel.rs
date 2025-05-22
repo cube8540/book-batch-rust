@@ -175,6 +175,7 @@ impl BookPgStore {
         let mut connection = self.pool.get()
             .map_err(|e| Error::ConnectError(e.to_string()))?;
         let updated_count = diesel::update(book::table)
+            .filter(book::id.eq(book.id() as i64))
             .set(BookForm::from(book))
             .execute(&mut connection)
             .map_err(|e| Error::SqlExecuteError(e.to_string()))?;
