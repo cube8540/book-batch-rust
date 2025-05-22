@@ -52,12 +52,10 @@ impl <R: BookRepository> Writer for UpsertBookWriter<R> {
         let mut exists = get_target_books(&self.repository, books);
 
         let mut new_books: Vec<&Book> = vec![];
-        let mut update_books: Vec<Book> = vec![];
-
         for book in books {
-            if let Some(mut ext) = exists.remove(book.isbn()) {
-                ext.merge(book);
-                update_books.push(ext);
+            if let Some(ext) = exists.remove(book.isbn()) {
+                let merged_book = ext.merge(book);
+                self.repository.update_book(&merged_book);
             } else {
                 new_books.push(book);
             }
@@ -67,11 +65,11 @@ impl <R: BookRepository> Writer for UpsertBookWriter<R> {
             .for_each(|books| {
                 self.repository.save_books(books);
             });
-        update_books.iter().for_each(|book| {
-            self.repository.update_book(book);
-        });
 
-        self.repository.find_by_isbn(books.iter().map(|b| b.isbn()).collect::<Vec<&str>>().as_slice())
+        let isbn = books.iter()
+            .map(|b| b.isbn())
+            .collect::<Vec<&str>>();
+        self.repository.find_by_isbn(&isbn)
     }
 }
 

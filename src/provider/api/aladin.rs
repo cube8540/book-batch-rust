@@ -1,8 +1,8 @@
-use crate::item::{Book, BookBuilder, Site};
-use crate::provider::api::{ClientError, Request};
+use crate::item::{BookBuilder, Site};
 use crate::provider;
+use crate::provider::api::{ClientError, Request};
 use chrono::NaiveDate;
-use reqwest::blocking;
+use reqwest::{blocking, Url};
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::env;
@@ -115,6 +115,18 @@ impl BookItem {
 
         map
     }
+
+    fn to_book_builder(&self) -> BookBuilder {
+        let mut builder = BookBuilder::new()
+            .isbn(self.isbn13.clone())
+            .title(self.title.clone())
+            .add_original(Site::Aladin, self.to_map());
+        let actual_pub_date = NaiveDate::parse_from_str(self.pub_date.as_str(), "%Y-%m-%d").ok();
+        if let Some(date) = actual_pub_date {
+            builder = builder.actual_pub_date(date);
+        }
+        builder
+    }
 }
 
 /// 알라딘 API 클라이언트
@@ -123,11 +135,11 @@ pub struct Client {
     ttb_key: String,
 }
 
-pub fn new_client() -> Result<Client, VarError> {
-    let key = env::var("ALADIN_KEY")?;
-    Ok(Client {
-        ttb_key: key,
-    })
+impl Client {
+    pub fn new_with_env() -> Result<Self, VarError> {
+        let key = env::var("ALADIN_KEY")?;
+        Ok(Self { ttb_key: key })
+    }
 }
 
 impl provider::api::Client for Client {
@@ -137,7 +149,7 @@ impl provider::api::Client for Client {
             .build()
             .map_err(|e| ClientError::RequestFailed(format!("클라이언트 생성 실패: {}", e)))?;
 
-        let url = build_search_url(&self.ttb_key, &request)?;
+        let url = build_search_url(&self.ttb_key, request)?;
         let response = client.get(url)
             .send()
             .map_err(|err| ClientError::RequestFailed(err.to_string()))?;
@@ -153,42 +165,32 @@ impl provider::api::Client for Client {
             .map_err(|err| ClientError::ResponseParseFailed(err.to_string()))?;
 
         let books = parsed_response.items.iter()
-            .map(|item| convert_item_to_book(item));
+            .map(|item| item.to_book_builder())
+            .collect();
 
-        Ok(provider::api::Response{
+        Ok(provider::api::Response {
             total_count: parsed_response.total_results,
             page_no: parsed_response.start_index,
             site: Site::Aladin,
-            books: books.collect(),
+            books,
         })
     }
 }
 
-
-fn build_search_url(key: &str, request: &Request) -> Result<reqwest::Url, ClientError> {
-    let mut url = reqwest::Url::parse(ALADIN_API_ENDPOINT)
-        .map_err(|_| ClientError::InvalidBaseUrl)?;
-
-    url.query_pairs_mut()
-        .append_pair("ttbkey", key)
-        .append_pair("Query", &request.query.clone())
-        .append_pair("QueryType", "Publisher")  // Publisher로 고정
-        .append_pair("start", &request.page.to_string())
-        .append_pair("MaxResults", &request.size.to_string())
-        .append_pair("SearchTarget", "Book")  // Book으로 고정
-        .append_pair("output", "js") // JS로 고정
-        .append_pair("Version", "20131101")
-        .append_pair("Sort", "PublishTime");
-
-    Ok(url)
-}
-
-fn convert_item_to_book(item: &BookItem) -> BookBuilder {
-    let actual_pub_date = NaiveDate::parse_from_str(item.pub_date.as_str(), "%Y-%m-%d").ok();
-    Book::builder()
-        .id(0)
-        .isbn(item.isbn13.clone())
-        .title(item.title.clone())
-        .actual_pub_date(actual_pub_date.unwrap())
-        .add_original(Site::Aladin, item.to_map())
+fn build_search_url(ttb_key: &str, request: &Request) -> Result<Url, ClientError> {
+    Url::parse(ALADIN_API_ENDPOINT)
+        .map_err(|_| ClientError::InvalidBaseUrl)
+        .map(|mut url| {
+            url.query_pairs_mut()
+                .append_pair("ttbkey", ttb_key)
+                .append_pair("Query", &request.query.clone())
+                .append_pair("QueryType", "Publisher")  // Publisher로 고정
+                .append_pair("start", &request.page.to_string())
+                .append_pair("MaxResults", &request.size.to_string())
+                .append_pair("SearchTarget", "Book")  // Book으로 고정
+                .append_pair("output", "js") // JS로 고정
+                .append_pair("Version", "20131101")
+                .append_pair("Sort", "PublishTime");
+            url
+        })
 }

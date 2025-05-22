@@ -1,4 +1,4 @@
-use crate::item::{Book, BookBuilder, BookRepository};
+use crate::item::{Book, BookRepository};
 use crate::procedure::reader::Reader;
 use crate::procedure::Parameter;
 use crate::provider::html::{kyobo, Client};
@@ -37,23 +37,12 @@ where
         let books = self.repository.find_by_pub_between(from, to);
         books.iter()
             .filter(|book| book.actual_pub_date().is_some())
-            .map(|book| {
+            .filter_map(|book| {
                 self.client.get(book.isbn())
-                    .map(|parsed_book| {
-                        let parsed_book = parsed_book
-                            .publisher_id(book.publisher_id())
-                            .actual_pub_date(book.actual_pub_date().unwrap())
-                            .build()
-                            .unwrap();
-                        Some(parsed_book)
-                    })
-                    .unwrap_or_else(|e| {
-                        error!("ISBN: {}, ERROR: {:?}", book.isbn(), e);
-                        None
-                    })
+                    .map(|parsed_book| parsed_book.build().unwrap())
+                    .inspect_err(|err| error!("ISBN: {}, ERROR: {:?}", book.isbn(), err))
+                    .ok()
             })
-            .filter(|book| book.is_some())
-            .map(|book| book.unwrap())
             .collect()
     }
 }

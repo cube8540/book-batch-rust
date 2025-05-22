@@ -89,7 +89,7 @@ pub fn create_nlgo_job_attr(
     connection: Pool<ConnectionManager<PgConnection>>,
     mongo_client: mongodb::sync::Client
 ) -> (impl Reader, impl Writer, impl Filter) {
-    let client = provider::api::nlgo::new_client()
+    let client = provider::api::nlgo::Client::new_with_env()
         .expect("Failed to create nlgo client");
     let nlgo_reader = procedure::reader::nlgo::new(client);
     let writer = procedure::writer::NewBookOnlyWriter::new(
@@ -104,7 +104,7 @@ pub fn create_aladin_job_attr(
     connection: Pool<ConnectionManager<PgConnection>>,
     mongo_client: mongodb::sync::Client
 ) -> (impl Reader, impl Writer, impl Filter) {
-    let client = provider::api::aladin::new_client()
+    let client = provider::api::aladin::Client::new_with_env()
         .expect("Failed to create aladin client");
     let aladin_reader = procedure::reader::aladin::new(client);
     let writer = procedure::writer::UpsertBookWriter::new(
@@ -119,7 +119,7 @@ pub fn create_naver_job_attr(
     connection: Pool<ConnectionManager<PgConnection>>,
     mongo_client: mongodb::sync::Client
 ) -> (impl Reader, impl Writer) {
-    let client = provider::api::naver::new_client()
+    let client = provider::api::naver::Client::new_with_env()
         .expect("Failed to create naver client");
     let naver_reader = procedure::reader::naver::new(
         client,

@@ -1,6 +1,6 @@
 use crate::item::{Book, BookBuilder, Site};
-use crate::provider::api::{ClientError, Request};
 use crate::provider;
+use crate::provider::api::{ClientError, Request};
 use serde::Deserialize;
 use serde_with::serde_as;
 use std::collections::HashMap;
@@ -61,25 +61,46 @@ pub struct Doc {
 
 impl Doc {
     fn to_map(&self) -> HashMap<String, String> {
-    let mut map = HashMap::new();
-    
-    map.insert("TITLE".to_string(), self.title.clone());
-    map.insert("EA_ISBN".to_string(), self.ea_isbn.clone());
-    map.insert("SET_ISBN".to_string(), self.set_isbn.clone());
-    map.insert("EA_ADD_CODE".to_string(), self.ea_add_code.clone());
-    map.insert("SET_ADD_CODE".to_string(), self.set_add_code.clone());
-    map.insert("SERIES_NO".to_string(), self.series_no.clone());
-    map.insert("SET_EXPRESSION".to_string(), self.set_expression.clone());
-    map.insert("SUBJECT".to_string(), self.subject.clone());
-    map.insert("PUBLISHER".to_string(), self.publisher.clone());
-    map.insert("AUTHOR".to_string(), self.author.clone());
-    map.insert("REAL_PUBLISH_DATE".to_string(), self.real_publish_date.clone());
-    map.insert("PUBLISH_PREDATE".to_string(), self.publish_predate.clone());
-    map.insert("UPDATE_DATE".to_string(), self.update_date.clone());
-    map.insert("PRE_PRICE".to_string(), self.price.clone());
-    
-    map
-}
+        let mut map = HashMap::new();
+
+        map.insert("TITLE".to_string(), self.title.clone());
+        map.insert("EA_ISBN".to_string(), self.ea_isbn.clone());
+        map.insert("SET_ISBN".to_string(), self.set_isbn.clone());
+        map.insert("EA_ADD_CODE".to_string(), self.ea_add_code.clone());
+        map.insert("SET_ADD_CODE".to_string(), self.set_add_code.clone());
+        map.insert("SERIES_NO".to_string(), self.series_no.clone());
+        map.insert("SET_EXPRESSION".to_string(), self.set_expression.clone());
+        map.insert("SUBJECT".to_string(), self.subject.clone());
+        map.insert("PUBLISHER".to_string(), self.publisher.clone());
+        map.insert("AUTHOR".to_string(), self.author.clone());
+        map.insert("REAL_PUBLISH_DATE".to_string(), self.real_publish_date.clone());
+        map.insert("PUBLISH_PREDATE".to_string(), self.publish_predate.clone());
+        map.insert("UPDATE_DATE".to_string(), self.update_date.clone());
+        map.insert("PRE_PRICE".to_string(), self.price.clone());
+
+        map
+    }
+
+    fn to_book_builder(&self) -> BookBuilder {
+        let mut builder = Book::builder()
+            .isbn(self.ea_isbn.clone())
+            .title(self.title.clone())
+            .add_original(Site::NLGO, self.to_map());
+
+        if self.publish_predate != "" {
+            if let Ok(spd) = chrono::NaiveDate::parse_from_str(&self.publish_predate, "%Y%m%d") {
+                builder = builder.scheduled_pub_date(spd);
+            }
+        }
+
+        if self.real_publish_date != "" {
+            if let Ok(acp) = chrono::NaiveDate::parse_from_str(&self.real_publish_date, "%Y%m%d") {
+                builder = builder.actual_pub_date(acp);
+            }
+        }
+
+        builder
+    }
 }
 
 /// API 응답 구조체로 검색 결과 메타데이터와 도서 정보 목록 포함
@@ -106,12 +127,12 @@ pub struct Client {
     key: String
 }
 
-pub fn new_client() -> Result<Client, VarError> {
-    let key = env::var("NLGO_KEY")?;
-    
-    Ok(Client {
-        key
-    })
+impl Client {
+
+    pub fn new_with_env() -> Result<Self, VarError> {
+        let key = env::var("NLGO_KEY")?;
+        Ok(Self { key })
+    }
 }
 
 impl provider::api::Client for Client {
@@ -125,13 +146,14 @@ impl provider::api::Client for Client {
             .map_err(|e| ClientError::ResponseParseFailed(e.to_string()))?;
 
         let books = parsed_response.docs.iter()
-            .map(|doc| convert_doc_to_book(doc));
+            .map(|doc| doc.to_book_builder())
+            .collect();
 
         Ok(provider::api::Response {
             total_count: parsed_response.total_count,
             page_no: parsed_response.page_no,
             site: Site::NLGO,
-            books: books.collect(),
+            books,
         })
     }
 }
@@ -165,31 +187,4 @@ fn build_search_url(key: &str, request: &Request) -> Result<reqwest::Url, Client
         .append_pair("order_by", "ASC");
 
     Ok(url)
-}
-
-fn convert_doc_to_book(doc: &Doc) -> BookBuilder {
-    let scheduled_pub_date = if doc.publish_predate != "" {
-        chrono::NaiveDate::parse_from_str(&doc.publish_predate, "%Y%m%d").ok()
-    } else {
-        None
-    };
-    let actual_pub_date = if doc.real_publish_date != "" {
-        chrono::NaiveDate::parse_from_str(&doc.real_publish_date, "%Y%m%d").ok()
-    } else {
-        None
-    };
-
-    let mut builder = Book::builder()
-        .isbn(doc.ea_isbn.clone())
-        .title(doc.title.clone())
-        .add_original(Site::NLGO, doc.to_map());
-
-    if let Some(scheduled_pub_date) = scheduled_pub_date {
-        builder = builder.scheduled_pub_date(scheduled_pub_date);
-    }
-    if let Some(actual_pub_date) = actual_pub_date {
-        builder = builder.actual_pub_date(actual_pub_date);
-    }
-
-    builder
 }

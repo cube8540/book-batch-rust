@@ -18,7 +18,6 @@ type CookieValue = String;
 pub trait LoginProvider {
     fn login(&mut self) -> Result<(), ParsingError>;
     
-
     fn get_cookies(&self) -> Result<Vec<CookieValue>, ParsingError>;
 }
 
@@ -59,10 +58,7 @@ where
             .build()
             .unwrap();
 
-        let request = client
-            .get(url)
-            .build().unwrap();
-
+        let request = client.get(url).build().unwrap();
         let response = client
             .execute(request)
             .map_err(|err| ParsingError::RequestFailed(format!("ISBN: {}, ERROR: {:?}", isbn, err)))?;

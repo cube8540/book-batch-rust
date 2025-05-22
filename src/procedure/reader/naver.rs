@@ -27,17 +27,12 @@ where
         let (from, to) = (parameter.from().as_ref().unwrap(), parameter.to().as_ref().unwrap());
         self.repository.find_by_pub_between(from, to).into_iter()
             .flat_map(|book| {
-                let request = provider::api::Request {
-                    page: 0,
-                    size: 0,
-                    query: book.isbn().to_owned(),
-                    start_date: None,
-                    end_date: None,
-                };
+                let request = provider::api::Request::builder()
+                    .query(book.isbn().to_owned())
+                    .build().unwrap();
                 self.client.get_books(&request).unwrap().books
-            })
-            .map(|builder| {
-                builder.build().unwrap()
+                    .into_iter()
+                    .map(|b| b.build().unwrap())
             })
             .collect()
     }

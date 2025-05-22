@@ -28,18 +28,16 @@ impl FromPublisher for AladinReader {
         let mut total_fetched = 0;
         let mut page = 1;
         loop {
-            let request = provider::api::Request {
-                page,
-                size: PAGE_SIZE,
-                query: keyword.to_string(),
-                start_date: None,
-                end_date: None,
-            };
+            let request = provider::api::Request::builder()
+                .page(page).size(PAGE_SIZE)
+                .query(keyword.to_owned())
+                .build().unwrap();
+
             let current_response = self.client.get_books(&request).unwrap(); // TODO: 에러 처리 필요
             if !current_response.books.is_empty() {
                 total_fetched += current_response.books.len();
-                current_response.books.into_iter().for_each(|b| v.push(b));
                 page += 1;
+                current_response.books.into_iter().for_each(|b| v.push(b));
                 if total_fetched >= MAX_RESULTS {
                     break v;
                 }
