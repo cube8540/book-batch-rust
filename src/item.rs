@@ -346,10 +346,6 @@ impl BookBuilder {
         self.originals.insert(site, raw);
         self
     }
-    
-    pub fn add_original_without_ownership(&mut self, site: Site, raw: Raw) {
-        self.originals.insert(site, raw);
-    }
 
     pub fn series_id(mut self, series_id: u64) -> Self {
         self.series_id = Some(series_id);
