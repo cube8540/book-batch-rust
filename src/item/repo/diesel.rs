@@ -178,4 +178,37 @@ impl BookPgStore {
 
         Ok(updated_count)
     }
+
+    pub fn find_series_unorganized(&self, limit: usize) -> Result<Vec<BookEntity>, Error> {
+        use schema::books::book::dsl::*;
+
+        let mut connection = self.pool.get()
+            .map_err(|e| Error::ConnectError(e.to_string()))?;
+        let result = book
+            .filter(series_id.is_null())
+            .limit(limit as i64)
+            .order_by(id.desc())
+            .select(BookEntity::as_select())
+            .load(&mut connection)
+            .map_err(|e| Error::SqlExecuteError(e.to_string()))?;
+
+        Ok(result)
+    }
+
+    pub fn find_by_series_id(&self, series_id: u64) -> Result<Vec<BookEntity>, Error> {
+        use schema::books::book::dsl::{book, id};
+        use schema::books::book::dsl::series_id as db_series_id;
+
+        let series_id = series_id as i64;
+        let mut connection = self.pool.get()
+            .map_err(|e| Error::ConnectError(e.to_string()))?;
+        let result = book
+            .filter(db_series_id.nullable().eq(&series_id))
+            .order_by(id.asc())
+            .select(BookEntity::as_select())
+            .load(&mut connection)
+            .map_err(|e| Error::SqlExecuteError(e.to_string()))?;
+
+        Ok(result)
+    }
 }

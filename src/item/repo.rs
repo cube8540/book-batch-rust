@@ -158,14 +158,42 @@ impl BookRepository for ComposeBookRepository {
         updated_count
     }
 
-    fn find_series_unorganized(&self, limit: i32) -> Vec<Book> {
-        // TODO 구현 해야해.........
-        vec![]
+    fn find_series_unorganized(&self, limit: usize) -> Vec<Book> {
+        let mut book_builders = self.book_store
+            .find_series_unorganized(limit)
+            .map(|entities| {
+                entities.into_iter()
+                    .map(|entity| entity.to_domain_builder())
+                    .collect()
+            })
+            .unwrap_or_else(|e| logging_with_default_vec(e));
+
+        if self.with_origin {
+            self.set_origin_data_to_builder(&mut book_builders);
+        }
+
+        book_builders.into_iter()
+            .map(|b| b.build().unwrap())
+            .collect()
     }
 
     fn find_by_series_id(&self, series_id: u64) -> Vec<Book> {
-        // TODO 구현 해야해.........
-        vec![]
+        let mut book_builders = self.book_store
+            .find_by_series_id(series_id)
+            .map(|entities| {
+                entities.into_iter()
+                    .map(|entity| entity.to_domain_builder())
+                    .collect()
+            })
+            .unwrap_or_else(|e| logging_with_default_vec(e));
+
+        if self.with_origin {
+            self.set_origin_data_to_builder(&mut book_builders);
+        }
+
+        book_builders.into_iter()
+            .map(|b| b.build().unwrap())
+            .collect()
     }
 }
 

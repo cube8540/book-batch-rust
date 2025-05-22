@@ -402,7 +402,7 @@ pub trait BookRepository {
     fn update_book(&self, book: &Book) -> usize;
 
     /// 시리즈화 되지 않은(시리즈 설정이 되지 않은) 도서를 limit 개수만큼 찾는다.
-    fn find_series_unorganized(&self, limit: i32) -> Vec<Book>;
+    fn find_series_unorganized(&self, limit: usize) -> Vec<Book>;
 
     /// 전달 받은 시리즈로 설정된 도서를 찾는다.
     fn find_by_series_id(&self, series_id: u64) -> Vec<Book>;
