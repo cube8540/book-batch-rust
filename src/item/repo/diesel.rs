@@ -150,14 +150,14 @@ impl BookPgStore {
         Ok(results)
     }
 
-    pub fn save_books(&self, books: &[Book]) -> Result<Vec<BookEntity>, Error> {
+    pub fn save_books<T: AsRef<Book>>(&self, books: &[T]) -> Result<Vec<BookEntity>, Error> {
         use schema::books::book;
 
         let mut connection = self.pool.get()
             .map_err(|e| Error::ConnectError(e.to_string()))?;
 
-        let entities = books.into_iter()
-            .map(|b| NewBook::from(b))
+        let entities = books.iter()
+            .map(|b| NewBook::from(b.as_ref()))
             .collect::<Vec<_>>();
 
         let results = diesel::insert_into(book::table)

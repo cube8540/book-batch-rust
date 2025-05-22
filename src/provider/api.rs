@@ -1,4 +1,4 @@
-use crate::book;
+use crate::item::{BookBuilder, Site};
 use chrono::NaiveDate;
 
 pub mod nlgo;
@@ -32,12 +32,12 @@ pub struct Request {
 pub struct Response {
     pub total_count: i32,
     pub page_no: i32,
-    pub site: book::Site,
-    pub books: Vec<book::Book>,
+    pub site: Site,
+    pub books: Vec<BookBuilder>,
 }
 
 impl Response {
-    pub fn empty(site: book::Site) -> Self {
+    pub fn empty(site: Site) -> Self {
         Response {
             total_count: 0,
             page_no: 0,

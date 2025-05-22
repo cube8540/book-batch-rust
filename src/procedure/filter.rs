@@ -1,5 +1,4 @@
-use crate::book::repository::BookOriginFilterRepository;
-use crate::book::Book;
+use crate::item::{Book, FilterRepository, Site};
 
 pub trait Filter {
     fn do_filter(&self, books: Vec<Book>) -> Vec<Book>;
@@ -51,28 +50,34 @@ impl Filter for EmptyIsbnFilter {
 
 pub struct OriginDataFilter<R>
 where
-    R: BookOriginFilterRepository
+    R: FilterRepository
 {
-    repository: R
+    repository: R,
+    site: Site
 }
 
 impl<R> OriginDataFilter<R>
 where
-    R: BookOriginFilterRepository
+    R: FilterRepository
 {
-    pub fn new(repository: R) -> OriginDataFilter<R> {
-        Self { repository }
+    pub fn new(repository: R, site: Site) -> OriginDataFilter<R> {
+        Self { repository, site }
     }
 }
 
 impl<R> Filter for OriginDataFilter<R>
 where
-    R: BookOriginFilterRepository
+    R: FilterRepository
 {
     fn do_filter(&self, books: Vec<Book>) -> Vec<Book> {
-        let filters = self.repository.get_root_filters();
+        let mut filters = self.repository.find_by_site(&self.site).into_iter()
+            .map(|f| f.to_predicate());
         books.into_iter()
-            .filter(|book| filters.iter().all(|filter| filter.borrow().validate(book)))
+            .filter(|book| { 
+                book.originals().get(&self.site)
+                    .map(|o| filters.all(|f| f.test(o)))
+                    .unwrap_or(true)
+            })
             .collect()
     }
 }

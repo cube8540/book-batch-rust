@@ -1,4 +1,4 @@
-use crate::book::{Book, Site};
+use crate::item::{Book, BookBuilder, Site};
 use crate::procedure::reader::{FromPublisher, Reader};
 use crate::procedure::Parameter;
 use crate::provider;
@@ -20,7 +20,7 @@ impl Reader for NlgoReader {
 }
 
 impl FromPublisher for NlgoReader {
-    fn read(&self, keyword: &str, parameter: &Parameter) -> Vec<Book> {
+    fn read(&self, keyword: &str, parameter: &Parameter) -> Vec<BookBuilder> {
         let mut v = Vec::new();
         let mut page = 1;
         loop {
@@ -42,6 +42,6 @@ impl FromPublisher for NlgoReader {
     }
 
     fn site(&self) -> Site {
-        nlgo::SITE.to_owned()
+        Site::NLGO
     }
 }

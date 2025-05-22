@@ -1,4 +1,4 @@
-use crate::book::{Book, Publisher};
+use crate::item::{Book, Publisher};
 use chrono::NaiveDate;
 
 pub mod reader;

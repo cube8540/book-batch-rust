@@ -1,7 +1,7 @@
 pub mod repo;
 
-use std::cell::RefCell;
 use regex::Regex;
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt;
 use std::fmt::{Display, Formatter};
@@ -282,9 +282,49 @@ impl Book {
     pub fn modified_at(&self) -> Option<chrono::NaiveDateTime> {
         self.modified_at
     }
+
+    pub fn merge(&self, other: &Book) -> Book {
+        let mut new_builder = Self::builder()
+            .id(self.id)
+            .isbn(self.isbn.clone())
+            .publisher_id(self.publisher_id);
+
+        for (site, raw) in &self.originals {
+            new_builder = new_builder.add_original(site.clone(), raw.clone());
+        }
+
+        if self.title != other.title {
+            new_builder = new_builder.title(other.title.clone());
+        }
+
+        if let Some(spd) = other.scheduled_pub_date {
+            if Some(spd) != self.scheduled_pub_date {
+                new_builder = new_builder.scheduled_pub_date(spd);
+            }
+        }
+
+        if let Some(apd) = other.actual_pub_date {
+            if Some(apd) != self.actual_pub_date {
+                new_builder = new_builder.actual_pub_date(apd);
+            }
+        }
+
+        for (site, raw) in &other.originals {
+            new_builder = new_builder.add_original(site.clone(), raw.clone());
+        }
+
+        new_builder.build().unwrap()
+    }
+}
+
+impl AsRef<Book> for Book {
+    fn as_ref(&self) -> &Book {
+        self
+    }
 }
 
 /// Book 빌더
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct BookBuilder {
     id: Option<u64>,
     isbn: Option<String>,
@@ -366,13 +406,12 @@ impl BookBuilder {
 
     pub fn build(self) -> Result<Book, ItemError> {
         let isbn = self.isbn.ok_or(ItemError::RequireArgumentMissing("isbn".to_owned()))?;
-        let publisher_id = self.publisher_id.ok_or(ItemError::RequireArgumentMissing("publisher_id".to_owned()))?;
         let title = self.title.ok_or(ItemError::RequireArgumentMissing("title".to_owned()))?;
 
         Ok(Book {
             id: self.id.unwrap_or(0),
             isbn,
-            publisher_id,
+            publisher_id: self.publisher_id.unwrap_or(0),
             series_id: self.series_id,
             title,
             scheduled_pub_date: self.scheduled_pub_date,
@@ -394,7 +433,7 @@ pub trait BookRepository {
     fn find_by_isbn(&self, isbn: &[&str]) -> Vec<Book>;
 
     /// 전달 받은 도서를 모두 저장소에 저장한다.
-    fn save_books(&self, books: &[Book]) -> Vec<Book>;
+    fn save_books<T: AsRef<Book>>(&self, books: &[T]) -> Vec<Book>;
 
     /// 전달 받은 도서 정보로 저장소의 도서를 업데이트 한다.
     fn update_book(&self, book: &Book) -> usize;

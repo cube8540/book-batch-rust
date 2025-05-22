@@ -3,7 +3,7 @@ pub mod nlgo;
 pub mod naver;
 pub mod kyobo;
 
-use crate::book::{Book, Site};
+use crate::item::{Book, BookBuilder, Site};
 use crate::procedure;
 
 use procedure::Parameter;
@@ -16,20 +16,18 @@ pub trait FromPublisher: Reader {
 
     fn read_books(&self, parameter: &Parameter) -> Vec<Book> {
         let publisher = parameter.publisher().as_ref().unwrap();
-        if let Some(keywords) = publisher.keywords().get(&self.site()) {
-            keywords.iter()
-                .flat_map(|keyword| {
-                    let mut books = self.read(keyword, parameter);
-                    books.iter_mut().for_each(|b| b.set_publisher_id(publisher.id()));
-                    books
-                })
-                .collect()
-        } else {
-            vec![]
-        }
+
+        publisher.keywords().get(&self.site())
+            .map(|keywords| {
+                keywords.iter()
+                    .flat_map(|keyword| self.read(keyword, parameter))
+                    .map(|b| b.publisher_id(publisher.id()).build().unwrap())
+                    .collect()
+            })
+            .unwrap_or_else(|| vec![])
     }
 
-    fn read(&self, keyword: &str, parameter: &Parameter) -> Vec<Book>;
+    fn read(&self, keyword: &str, parameter: &Parameter) -> Vec<BookBuilder>;
 
     fn site(&self) -> Site;
 }

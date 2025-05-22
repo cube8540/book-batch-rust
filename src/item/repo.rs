@@ -1,18 +1,15 @@
-use std::cell::RefCell;
-use crate::book::Original;
-use crate::item::repo::diesel::{BookEntity, BookOriginFilterEntity, BookOriginFilterPgStore, BookPgStore, PublisherPgStore};
+use crate::item::repo::diesel::{BookEntity, BookOriginFilterPgStore, BookPgStore, PublisherPgStore};
 use crate::item::repo::mongo::BookOriginDataStore;
-use crate::item::{Book, BookRepository, FilterRepository, FilterRule, Operator, Publisher, PublisherRepository, Site};
+use crate::item::{Book, BookRepository, FilterRepository, FilterRule, Publisher, PublisherRepository, Raw, Site};
 use chrono::NaiveDate;
 use ::diesel::r2d2::ConnectionManager;
 use ::diesel::PgConnection;
 use mongodb::sync;
 use r2d2::Pool;
-use regex::Regex;
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::rc::Rc;
-use std::str::FromStr;
 use sync::Client;
 use tracing::error;
 
@@ -45,7 +42,7 @@ impl ComposeBookRepository {
 }
 
 impl ComposeBookRepository {
-    fn load_original_data(&self, entities: &[BookEntity]) -> HashMap<i64, (Site, Original)> {
+    fn load_original_data(&self, entities: &[BookEntity]) -> HashMap<i64, (Site, Raw)> {
         let book_ids = entities.iter()
             .map(|e| e.id)
             .collect::<Vec<_>>();
@@ -94,9 +91,12 @@ impl BookRepository for ComposeBookRepository {
             .collect()
     }
 
-    fn save_books(&self, books: &[Book]) -> Vec<Book> {
+    fn save_books<T: AsRef<Book>>(&self, books: &[T]) -> Vec<Book> {
         let mut isbn_with_origin = books.iter()
-            .map(|b| (b.isbn().to_owned(), b.originals()))
+            .map(|b| {
+                let book = b.as_ref();
+                (book.isbn().to_owned(), book.originals())
+            })
             .collect::<HashMap<_, _>>();
 
         let saved_book_entities = self.book_store.save_books(books)
@@ -263,7 +263,7 @@ impl FilterRepository for DieselFilterRepository {
     }
 }
 
-fn compose_entity_with_original(book_entity: BookEntity, originals: &mut HashMap<i64, (Site, Original)>) -> Book {
+fn compose_entity_with_original(book_entity: BookEntity, originals: &mut HashMap<i64, (Site, Raw)>) -> Book {
     let mut builder = book_entity.to_domain_builder();
     if let Some((site, original)) = originals.remove(&book_entity.id) {
         builder = builder.add_original(site, original);

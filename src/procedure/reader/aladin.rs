@@ -1,4 +1,4 @@
-use crate::book::{Book, Site};
+use crate::item::{Book, BookBuilder, Site};
 use crate::procedure::reader::{FromPublisher, Reader};
 use crate::procedure::Parameter;
 use crate::provider;
@@ -23,7 +23,7 @@ impl Reader for AladinReader {
 }
 
 impl FromPublisher for AladinReader {
-    fn read(&self, keyword: &str, _: &Parameter) -> Vec<Book> {
+    fn read(&self, keyword: &str, _: &Parameter) -> Vec<BookBuilder> {
         let mut v = Vec::new();
         let mut total_fetched = 0;
         let mut page = 1;
@@ -50,6 +50,6 @@ impl FromPublisher for AladinReader {
     }
 
     fn site(&self) -> Site {
-        aladin::SITE.to_owned()
+        Site::Aladin
     }
 }

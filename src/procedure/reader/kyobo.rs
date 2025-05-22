@@ -1,4 +1,4 @@
-use crate::book::{repository, Book};
+use crate::item::{Book, BookBuilder, BookRepository};
 use crate::procedure::reader::Reader;
 use crate::procedure::Parameter;
 use crate::provider::html::{kyobo, Client};
@@ -6,7 +6,7 @@ use tracing::error;
 
 pub struct KyoboReader<R, P>
 where
-    R: repository::BookRepository,
+    R: BookRepository,
     P: kyobo::LoginProvider
 {
     client: kyobo::Client<P>,
@@ -15,7 +15,7 @@ where
 
 impl <R, P> KyoboReader<R, P>
 where
-    R: repository::BookRepository,
+    R: BookRepository,
     P: kyobo::LoginProvider
 {
     pub fn new(client: kyobo::Client<P>, repository: R) -> Self {
@@ -29,17 +29,24 @@ where
 
 impl<R, P> Reader for KyoboReader<R, P>
 where
-    R: repository::BookRepository,
+    R: BookRepository,
     P: kyobo::LoginProvider
 {
     fn read_books(&self, parameter: &Parameter) -> Vec<Book> {
         let (from, to) = (parameter.from().as_ref().unwrap(), parameter.to().as_ref().unwrap());
-        let books = self.repository.find_by_pub_date(from, to);
+        let books = self.repository.find_by_pub_between(from, to);
         books.iter()
             .filter(|book| book.actual_pub_date().is_some())
             .map(|book| {
                 self.client.get(book.isbn())
-                    .map(|parsed_book| Some(parsed_book))
+                    .map(|parsed_book| {
+                        let parsed_book = parsed_book
+                            .publisher_id(book.publisher_id())
+                            .actual_pub_date(book.actual_pub_date().unwrap())
+                            .build()
+                            .unwrap();
+                        Some(parsed_book)
+                    })
                     .unwrap_or_else(|e| {
                         error!("ISBN: {}, ERROR: {:?}", book.isbn(), e);
                         None
@@ -47,6 +54,6 @@ where
             })
             .filter(|book| book.is_some())
             .map(|book| book.unwrap())
-            .collect::<Vec<Book>>()
+            .collect()
     }
 }

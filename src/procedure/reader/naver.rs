@@ -1,4 +1,4 @@
-use crate::book::{repository, Book};
+use crate::item::{Book, BookRepository};
 use crate::procedure::reader::Reader;
 use crate::procedure::Parameter;
 use crate::provider;
@@ -6,7 +6,7 @@ use crate::provider::api::{naver, Client};
 
 pub struct NaverReader<R>
 where
-    R: repository::BookRepository,
+    R: BookRepository,
 {
     client: naver::Client,
     repository: R,
@@ -14,28 +14,30 @@ where
 
 pub fn new<R>(client: naver::Client, repository: R) -> NaverReader<R>
 where
-    R: repository::BookRepository,
+    R: BookRepository,
 {
     NaverReader { client, repository }
 }
 
 impl <R> Reader for NaverReader<R>
 where
-    R: repository::BookRepository,
+    R: BookRepository,
 {
     fn read_books(&self, parameter: &Parameter) -> Vec<Book> {
         let (from, to) = (parameter.from().as_ref().unwrap(), parameter.to().as_ref().unwrap());
-        let books = self.repository.find_by_pub_date(from, to);
-        books.iter()
-            .flat_map(|b| {
+        self.repository.find_by_pub_between(from, to).into_iter()
+            .flat_map(|book| {
                 let request = provider::api::Request {
                     page: 0,
                     size: 0,
-                    query: b.isbn().to_owned(),
+                    query: book.isbn().to_owned(),
                     start_date: None,
                     end_date: None,
                 };
                 self.client.get_books(&request).unwrap().books
+            })
+            .map(|builder| {
+                builder.build().unwrap()
             })
             .collect()
     }

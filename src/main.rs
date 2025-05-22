@@ -1,5 +1,6 @@
-use book_batch_rust::book::repository::PublisherRepository;
-use book_batch_rust::{book, configs, create_aladin_job_attr, create_kyobo_job_attr, create_naver_job_attr, create_nlgo_job_attr, from_to, item, procedure, JobName};
+use book_batch_rust::item::repo::DieselPublisherRepository;
+use book_batch_rust::item::PublisherRepository;
+use book_batch_rust::{configs, create_aladin_job_attr, create_kyobo_job_attr, create_naver_job_attr, create_nlgo_job_attr, from_to, procedure, JobName};
 use tracing::error;
 
 fn main() {
@@ -13,17 +14,18 @@ fn main() {
     });
     
     let connection = configs::connect_to_postgres();
+    let mongo_client = configs::connect_to_mongo();
     let (from, to) = if let (Some(from), Some(to)) = (args.from, args.to) {
         (from, to)
     } else {
         from_to(30, 60)
     };
     
-    let publisher_repository = book::repository::diesel::publisher::new(connection.clone());
+    let publisher_repository = DieselPublisherRepository::new(connection.clone());
     match args.job {
         JobName::NLGO => {
             let (reader, writer, filter) =
-                create_nlgo_job_attr(connection.clone());
+                create_nlgo_job_attr(connection.clone(), mongo_client.clone());
             let job = procedure::Job::builder()
                 .reader(Box::new(reader))
                 .writer(Box::new(writer))
@@ -42,7 +44,7 @@ fn main() {
         }
         JobName::ALADIN => {
             let (reader, writer, filter) =
-                create_aladin_job_attr(connection.clone());
+                create_aladin_job_attr(connection.clone(), mongo_client.clone());
             let job = procedure::Job::builder()
                 .reader(Box::new(reader))
                 .writer(Box::new(writer))
@@ -58,7 +60,7 @@ fn main() {
             }
         }
         JobName::NAVER => {
-            let (reader, writer) = create_naver_job_attr(connection.clone());
+            let (reader, writer) = create_naver_job_attr(connection.clone(), mongo_client.clone());
             let job = procedure::Job::builder()
                 .reader(Box::new(reader))
                 .writer(Box::new(writer))
@@ -71,7 +73,7 @@ fn main() {
             job.run(&parameter.build());
         },
         JobName::KYOBO => {
-            let (reader, writer) = create_kyobo_job_attr(connection.clone())
+            let (reader, writer) = create_kyobo_job_attr(connection.clone(), mongo_client.clone())
                 .unwrap_or_else(|err| {
                     error!("{:?}", err);
                     std::process::exit(1);

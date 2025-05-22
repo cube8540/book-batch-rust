@@ -1,7 +1,5 @@
-use crate::book::repository::BookRepository;
-use crate::book::Book;
+use crate::item::{Book, BookRepository};
 use std::collections::HashMap;
-use tracing::error;
 
 const WRITE_SIZE: usize = 100;
 
@@ -24,24 +22,14 @@ impl <R: BookRepository> NewBookOnlyWriter<R> {
 
 impl <R: BookRepository> Writer for NewBookOnlyWriter<R> {
     fn write(&self, books: &[Book]) -> Vec<Book> {
-        let exists = get_target_books(&self.repository, books);
-
-        let filtered_books: Vec<&Book> = books.iter()
-            .filter(|b| !exists.contains_key(b.isbn()))
+        let exists_books = get_target_books(&self.repository, books);
+        let not_exists_books: Vec<&Book> = books.iter()
+            .filter(|b| !exists_books.contains_key(b.isbn()))
             .collect();
 
-        let chunks = filtered_books.chunks(WRITE_SIZE);
+        let chunks = not_exists_books.chunks(WRITE_SIZE);
         chunks.into_iter()
-            .flat_map(|books| {
-                let result = self.repository.new_books(books.iter().cloned(), true);
-                if let Ok(books) = result {
-                    books
-                } else {
-                    let isbn: Vec<&str> = books.iter().map(|b| b.isbn()).collect();
-                    error!("도서 저장 중 에러가 발생 했습니다 {:?} (ISBN => {:?})", result.unwrap_err(), isbn);
-                    vec![]
-                }
-            })
+            .flat_map(|books| self.repository.save_books(books))
             .collect()
     }
 }
@@ -75,19 +63,15 @@ impl <R: BookRepository> Writer for UpsertBookWriter<R> {
             }
         }
 
-        new_books.chunks(WRITE_SIZE).into_iter().for_each(|books| {
-            if let Err(err) = self.repository.new_books(books.iter().cloned(), true) {
-                let isbn: Vec<&str> = books.iter().map(|b| b.isbn()).collect();
-                error!("도서 저장 중 에러가 발생 했습니다 {:?} (ISBN => {:?})", err, isbn);
-            }
-        });
+        new_books.chunks(WRITE_SIZE).into_iter()
+            .for_each(|books| {
+                self.repository.save_books(books);
+            });
         update_books.iter().for_each(|book| {
-            if let Err(err) = self.repository.update_book(book, true) {
-                error!("도서 저장 중 에러가 발생 했습니다. {:?} (ISBN => {})", err, book.isbn());
-            }
+            self.repository.update_book(book);
         });
 
-        self.repository.find_by_isbn(books.iter().map(|b| b.isbn()))
+        self.repository.find_by_isbn(books.iter().map(|b| b.isbn()).collect::<Vec<&str>>().as_slice())
     }
 }
 
@@ -95,8 +79,8 @@ fn get_target_books<R>(repository: &R, target: &[Book]) -> HashMap<String, Book>
 where
     R: BookRepository
 {
-    repository.find_by_isbn(target.iter().map(|b| b.isbn()))
-        .into_iter()
+    let isbn: Vec<&str> = target.iter().map(|b| b.isbn()).collect();
+    repository.find_by_isbn(&isbn).into_iter()
         .map(|b| (b.isbn().to_owned(), b))
-        .collect::<HashMap<String, Book>>()
+        .collect()
 }

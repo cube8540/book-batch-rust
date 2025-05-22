@@ -1,5 +1,6 @@
+use crate::item::{Book, BookBuilder, Site};
 use crate::provider::api::{ClientError, Request};
-use crate::{book, provider};
+use crate::provider;
 use serde::Deserialize;
 use serde_with::serde_as;
 use std::collections::HashMap;
@@ -129,7 +130,7 @@ impl provider::api::Client for Client {
         Ok(provider::api::Response {
             total_count: parsed_response.total_count,
             page_no: parsed_response.page_no,
-            site: SITE.to_string(),
+            site: Site::NLGO,
             books: books.collect(),
         })
     }
@@ -166,7 +167,7 @@ fn build_search_url(key: &str, request: &Request) -> Result<reqwest::Url, Client
     Ok(url)
 }
 
-fn convert_doc_to_book(doc: &Doc) -> book::Book {
+fn convert_doc_to_book(doc: &Doc) -> BookBuilder {
     let scheduled_pub_date = if doc.publish_predate != "" {
         chrono::NaiveDate::parse_from_str(&doc.publish_predate, "%Y%m%d").ok()
     } else {
@@ -177,12 +178,18 @@ fn convert_doc_to_book(doc: &Doc) -> book::Book {
     } else {
         None
     };
-    book::Book::new(
-        doc.ea_isbn.clone(),
-        0,
-        doc.title.clone(),
-        scheduled_pub_date,
-        actual_pub_date,
-        HashMap::from([(SITE.to_string(), doc.to_map())]),
-    )
+
+    let mut builder = Book::builder()
+        .isbn(doc.ea_isbn.clone())
+        .title(doc.title.clone())
+        .add_original(Site::NLGO, doc.to_map());
+
+    if let Some(scheduled_pub_date) = scheduled_pub_date {
+        builder = builder.scheduled_pub_date(scheduled_pub_date);
+    }
+    if let Some(actual_pub_date) = actual_pub_date {
+        builder = builder.actual_pub_date(actual_pub_date);
+    }
+
+    builder
 }

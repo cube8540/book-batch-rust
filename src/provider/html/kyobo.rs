@@ -1,6 +1,6 @@
 pub mod chrome;
 
-use crate::book::Book;
+use crate::item::{Book, BookBuilder, Site};
 use crate::provider::html;
 use crate::provider::html::ParsingError;
 use reqwest::cookie::Jar;
@@ -8,8 +8,6 @@ use reqwest::Url;
 use scraper::{Html, Selector};
 use std::collections::HashMap;
 use std::sync::Arc;
-
-pub const SITE: &'static str = "KYOBO";
 
 const AGENT: &'static str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.149 Safari/537.36";
 
@@ -44,7 +42,7 @@ impl <P> html::Client for Client<P>
 where
     P: LoginProvider,
 {
-    fn get(&self, isbn: &str) -> Result<Book, ParsingError> {
+    fn get(&self, isbn: &str) -> Result<BookBuilder, ParsingError> {
         let mut url = Url::parse(ISBN_SEARCH_ENDPOINT).unwrap();
         url.query_pairs_mut().append_pair("barcode", isbn);
 
@@ -74,7 +72,7 @@ where
     }
 }
 
-fn html_to_book(document: &Html) -> Result<Book, ParsingError> {
+fn html_to_book(document: &Html) -> Result<BookBuilder, ParsingError> {
     let isbn_meta_selector = Selector::parse("meta[property=\"books:isbn\"]").unwrap();
     let isbn_meta_element = document.select(&isbn_meta_selector).next();
 
@@ -115,12 +113,10 @@ fn html_to_book(document: &Html) -> Result<Book, ParsingError> {
         origin_data.insert("prod_description".to_owned(), prod_description);
     }
 
-    Ok(Book::new(
-        isbn.to_owned(),
-        0,
-        title.clone(),
-        None,
-        None,
-        HashMap::from([(SITE.to_owned(), origin_data)])
-    ))
+    let builder = Book::builder()
+        .isbn(isbn.to_owned())
+        .title(title.clone())
+        .add_original(Site::KyoboBook, origin_data);
+
+    Ok(builder)
 }

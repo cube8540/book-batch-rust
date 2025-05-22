@@ -1,6 +1,6 @@
 pub mod kyobo;
 
-use crate::book::Book;
+use crate::item::BookBuilder;
 use std::fmt;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -22,5 +22,5 @@ impl fmt::Display for ParsingError {
 }
 
 pub trait Client {
-    fn get(&self, isbn: &str) -> Result<Book, ParsingError>;
+    fn get(&self, isbn: &str) -> Result<BookBuilder, ParsingError>;
 }

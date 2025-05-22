@@ -1,5 +1,6 @@
+use crate::item::{Book, BookBuilder, Site};
 use crate::provider::api::{ClientError, Request};
-use crate::{book, provider};
+use crate::provider;
 use chrono::NaiveDate;
 use reqwest::blocking;
 use serde::Deserialize;
@@ -11,8 +12,6 @@ use std::env::VarError;
 const ALADIN_API_ENDPOINT: &'static str = "https://www.aladin.co.kr/ttb/api/ItemSearch.aspx";
 /// API 요청의 기본 타임아웃 시간(초)
 const DEFAULT_TIMEOUT_SECONDS: u64 = 10;
-
-pub const SITE: &'static str = "ALADIN";
 
 /// 알라딘 API 응답을 표현하는 구조체
 #[derive(Debug, Deserialize)]
@@ -159,7 +158,7 @@ impl provider::api::Client for Client {
         Ok(provider::api::Response{
             total_count: parsed_response.total_results,
             page_no: parsed_response.start_index,
-            site: SITE.to_string(),
+            site: Site::Aladin,
             books: books.collect(),
         })
     }
@@ -184,13 +183,12 @@ fn build_search_url(key: &str, request: &Request) -> Result<reqwest::Url, Client
     Ok(url)
 }
 
-fn convert_item_to_book(item: &BookItem) -> book::Book {
-    book::Book::new(
-        item.isbn13.clone(),
-        0,
-        item.title.clone(),
-        None,
-        NaiveDate::parse_from_str(item.pub_date.as_str(), "%Y-%m-%d").ok(),
-        HashMap::from([(SITE.to_string(), item.to_map())]),
-    )
+fn convert_item_to_book(item: &BookItem) -> BookBuilder {
+    let actual_pub_date = NaiveDate::parse_from_str(item.pub_date.as_str(), "%Y-%m-%d").ok();
+    Book::builder()
+        .id(0)
+        .isbn(item.isbn13.clone())
+        .title(item.title.clone())
+        .actual_pub_date(actual_pub_date.unwrap())
+        .add_original(Site::Aladin, item.to_map())
 }

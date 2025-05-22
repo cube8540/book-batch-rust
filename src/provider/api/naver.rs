@@ -1,13 +1,12 @@
+use crate::item::{Book, Site};
 use crate::provider::api::{ClientError, Request, Response};
-use crate::{book, provider};
+use crate::provider;
 use serde::Deserialize;
 use serde_with::serde_as;
 use std::collections::HashMap;
 use std::env::VarError;
 
 const BOOK_SEARCH_ENDPOINT: &'static str = "https://openapi.naver.com/v1/search/book_adv.xml";
-
-pub const SITE: &'static str = "NAVER";
 
 #[serde_as]
 #[derive(Debug, Deserialize)]
@@ -29,25 +28,25 @@ impl RssResponse {
                     } else {
                         None
                     };
-                    book::Book::new(
-                        item.isbn.clone(),
-                        0,
-                        item.title.clone(),
-                        None,
-                        actual_pub_date,
-                        HashMap::from([(SITE.to_string(), item.to_map())])
-                    )
+                    let mut builder = Book::builder()
+                        .isbn(item.isbn.clone())
+                        .title(item.title.clone())
+                        .add_original(Site::Naver, item.to_map());
+                    if let Some(pub_date) = actual_pub_date {
+                        builder = builder.actual_pub_date(pub_date);
+                    }
+                    builder
                 })
                 .collect();
 
             Response {
                 total_count: channel.total,
                 page_no: channel.start,
-                site: SITE.to_string(),
+                site: Site::Naver,
                 books,
             }
         } else {
-            Response::empty(SITE.to_string())
+            Response::empty(Site::Naver)
         }
     }
 }
