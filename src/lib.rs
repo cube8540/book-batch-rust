@@ -156,12 +156,14 @@ pub fn create_kyobo_job_attr(
 
 fn create_filter_chain(connection: Pool<ConnectionManager<PgConnection>>, site: Site) -> procedure::filter::FilterChain {
     let empty_isbn_filter = procedure::filter::EmptyIsbnFilter {};
+    let drop_dup_filter = procedure::filter::DropDuplicatedIsbnFilter {};
     let origin_data_filter = procedure::filter::OriginDataFilter::new(
         DieselFilterRepository::new(connection.clone()),
         site
     );
     let mut filter_chain = procedure::filter::FilterChain::new();
     filter_chain.add_filter(Box::new(empty_isbn_filter));
+    filter_chain.add_filter(Box::new(drop_dup_filter));
     filter_chain.add_filter(Box::new(origin_data_filter));
 
     filter_chain

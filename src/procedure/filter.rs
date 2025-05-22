@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use crate::item::{Book, FilterRepository, Site};
 
 pub trait Filter {
@@ -45,6 +46,24 @@ impl Filter for EmptyIsbnFilter {
         books.into_iter()
             .filter(|book| !book.isbn().is_empty())
             .collect()
+    }
+}
+
+pub struct DropDuplicatedIsbnFilter;
+
+impl Filter for DropDuplicatedIsbnFilter {
+    fn do_filter(&self, books: Vec<Book>) -> Vec<Book> {
+        let mut isbn_set = HashSet::new();
+        let mut filtered_books = Vec::new();
+
+        for book in books {
+            if !isbn_set.contains(book.isbn()) {
+                isbn_set.insert(book.isbn().to_owned());
+                filtered_books.push(book);
+            }
+        }
+
+        filtered_books
     }
 }
 
