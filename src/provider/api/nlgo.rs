@@ -3,7 +3,7 @@ use crate::provider;
 use crate::provider::api::{ClientError, Request};
 use serde::Deserialize;
 use serde_with::serde_as;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::env;
 use std::env::VarError;
 
@@ -145,9 +145,16 @@ impl provider::api::Client for Client {
         let parsed_response: Response = serde_json::from_str(&response_text)
             .map_err(|e| ClientError::ResponseParseFailed(e.to_string()))?;
 
-        let books = parsed_response.docs.iter()
-            .map(|doc| doc.to_book_builder())
-            .collect();
+        let mut set: HashSet<String> = HashSet::new();
+        let mut books: Vec<BookBuilder> = Vec::new();
+
+        // 와.. 어떻게 똑같은 데이터가 두 개 내려오냐...
+        for book in parsed_response.docs.iter() {
+            if !set.contains(&book.ea_isbn) {
+                set.insert(book.ea_isbn.clone());
+                books.push(book.to_book_builder());
+            }
+        }
 
         Ok(provider::api::Response {
             total_count: parsed_response.total_count,
