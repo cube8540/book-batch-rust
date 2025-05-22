@@ -1,8 +1,10 @@
-use crate::item::{Book, BookBuilder};
+use std::str::FromStr;
+use crate::item::{Book, BookBuilder, FilterRule, Operator, Site};
 use diesel::associations::HasTable;
 use diesel::prelude::*;
 use diesel::r2d2::ConnectionManager;
 use r2d2::Pool;
+use regex::Regex;
 
 mod schema;
 
@@ -261,5 +263,75 @@ impl PublisherPgStore {
             .map_err(|e| Error::SqlExecuteError(e.to_string()))?;
 
         Ok(publisher_with_keywords)
+    }
+}
+
+#[derive(Queryable, Selectable)]
+#[diesel(table_name = schema::books::book_origin_filter)]
+#[diesel(check_for_backend(diesel::pg::Pg))]
+pub struct BookOriginFilterEntity {
+    pub id: i64,
+    pub name: String,
+    pub site: String,
+    pub is_root: bool,
+    pub operator_type: Option<String>,
+    pub property_name: Option<String>,
+    pub regex_val: Option<String>,
+    pub parent_id: Option<i64>,
+}
+
+impl BookOriginFilterEntity {
+
+    pub fn is_operand(&self) -> bool {
+        self.property_name.is_some() && self.regex_val.is_some()
+    }
+
+    pub fn is_operator(&self) -> bool {
+        self.operator_type.is_some()
+    }
+
+    pub fn to_domain(&self) -> FilterRule {
+        match self.is_operator() {
+            true => {
+                let operator = Operator::from_str(&self.operator_type.as_ref().unwrap()).unwrap();
+                FilterRule::new_operator(&self.name, operator)
+            }
+            false => {
+                let regex = Regex::from_str(&self.regex_val.as_ref().unwrap()).unwrap();
+                FilterRule::new_operand(
+                    &self.name,
+                    &self.property_name.as_ref().unwrap(),
+                    regex
+                )
+            }
+        }
+    }
+}
+
+pub struct BookOriginFilterPgStore {
+    pool: Pool<ConnectionManager<PgConnection>>
+}
+
+impl BookOriginFilterPgStore {
+    pub fn new(pool: Pool<ConnectionManager<PgConnection>>) -> Self {
+        Self { pool }
+    }
+}
+
+impl BookOriginFilterPgStore {
+    pub fn find_by_site(&self, site: &Site) -> Result<Vec<BookOriginFilterEntity>, Error> {
+        use schema::books::book_origin_filter::dsl::{book_origin_filter};
+        use schema::books::book_origin_filter::dsl::site as db_site;
+
+        let mut connection = self.pool.get()
+            .map_err(|e| Error::ConnectError(e.to_string()))?;
+
+        let results = book_origin_filter
+            .filter(db_site.eq(&site.to_code_str()))
+            .select(BookOriginFilterEntity::as_select())
+            .load(&mut connection)
+            .map_err(|e| Error::SqlExecuteError(e.to_string()))?;
+
+        Ok(results)
     }
 }

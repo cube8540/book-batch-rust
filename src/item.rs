@@ -1,9 +1,11 @@
 pub mod repo;
 
+use std::cell::RefCell;
 use regex::Regex;
 use std::collections::HashMap;
 use std::fmt;
 use std::fmt::{Display, Formatter};
+use std::rc::Rc;
 
 /// Item 모듈에서 사용할 에러 열거
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -413,6 +415,18 @@ pub enum Operator {
     NAND
 }
 
+impl Operator {
+    pub fn from_str(v: &str) -> Result<Self, ItemError> {
+        match v {
+            "AND" => Ok(Operator::AND),
+            "OR" => Ok(Operator::OR),
+            "NOR" => Ok(Operator::NOR),
+            "NAND" => Ok(Operator::NAND),
+            _ => Err(ItemError::UnknownCode(format!("Unknown operator: {}", v)))
+        }
+    }
+}
+
 /// 원본 데이터 유효성 검증 피연산자 트레이트
 pub trait Operand {
     fn test(&self, raw: &Raw) -> bool;
@@ -489,7 +503,9 @@ impl Operand for Expression {
 ///
 /// ### Example
 /// ```
+/// use std::cell::RefCell;
 /// use std::collections::HashMap;
+/// use std::rc::Rc;
 /// use regex::Regex;
 /// use book_batch_rust::item::{FilterRule, Operator, Raw};
 ///
@@ -502,8 +518,8 @@ impl Operand for Expression {
 /// let second_rule = FilterRule::new_operand("second rule", "second", Regex::new("^[a-zA-Z]+$").unwrap());
 ///
 /// let mut rule = FilterRule::new_operator("연산식 테스트", Operator::AND);
-/// rule.add_operand(first_rule);
-/// rule.add_operand(second_rule);
+/// rule.add_operand(Rc::new(RefCell::new(first_rule)));
+/// rule.add_operand(Rc::new(RefCell::new(second_rule)));
 ///
 /// let operand = rule.to_predicate();
 /// assert!(operand.test(&raw));
@@ -518,7 +534,7 @@ pub struct FilterRule {
     rule: Option<(String, Regex)>,
 
     // 연산자 목록
-    operands: Vec<FilterRule>
+    operands: Vec<Rc<RefCell<FilterRule>>>
 }
 
 impl FilterRule {
@@ -553,11 +569,11 @@ impl FilterRule {
         &self.rule
     }
 
-    pub fn operands(&self) -> &Vec<FilterRule> {
+    pub fn operands(&self) -> &Vec<Rc<RefCell<FilterRule>>> {
         &self.operands
     }
 
-    pub fn add_operand(&mut self, operand: FilterRule) {
+    pub fn add_operand(&mut self, operand: Rc<RefCell<FilterRule>>) {
         self.operands.push(operand);
     }
 }
@@ -567,7 +583,7 @@ impl FilterRule {
     pub fn to_predicate(&self) -> Box<dyn Operand> {
         if let Some(operator) = self.operator {
             let operands = self.operands.iter()
-                .map(|o| o.to_predicate())
+                .map(|o| o.borrow().to_predicate())
                 .collect();
             Box::new(Expression(operator, operands))
         } else if let Some((property_name, regex)) = self.rule.as_ref() {
@@ -587,5 +603,5 @@ impl FilterRule {
 pub trait FilterRepository {
 
     /// 특정 사이트의 데이터를 필터링하는 규칙을 찾는다.
-    fn find_by_site(&self, site: Site) -> Vec<FilterRule>;
+    fn find_by_site(&self, site: &Site) -> Vec<FilterRule>;
 }

@@ -1,14 +1,18 @@
+use std::cell::RefCell;
 use crate::book::Original;
-use crate::item::repo::diesel::{BookEntity, BookPgStore, PublisherPgStore};
+use crate::item::repo::diesel::{BookEntity, BookOriginFilterEntity, BookOriginFilterPgStore, BookPgStore, PublisherPgStore};
 use crate::item::repo::mongo::BookOriginDataStore;
-use crate::item::{Book, BookBuilder, BookRepository, Publisher, PublisherRepository, Site};
+use crate::item::{Book, BookRepository, FilterRepository, FilterRule, Operator, Publisher, PublisherRepository, Site};
 use chrono::NaiveDate;
 use ::diesel::r2d2::ConnectionManager;
 use ::diesel::PgConnection;
 use mongodb::sync;
 use r2d2::Pool;
+use regex::Regex;
 use std::collections::HashMap;
 use std::fmt::Debug;
+use std::rc::Rc;
+use std::str::FromStr;
 use sync::Client;
 use tracing::error;
 
@@ -208,6 +212,54 @@ impl PublisherRepository for DieselPublisherRepository {
         }
 
         publisher_map.into_values().collect()
+    }
+}
+
+pub struct DieselFilterRepository {
+    store: BookOriginFilterPgStore
+}
+
+impl DieselFilterRepository {
+    pub fn new(pool: Pool<ConnectionManager<PgConnection>>) -> Self {
+        Self {
+            store: BookOriginFilterPgStore::new(pool),
+        }
+    }
+}
+
+impl FilterRepository for DieselFilterRepository {
+
+    fn find_by_site(&self, site: &Site) -> Vec<FilterRule> {
+        let filter_entities = self.store.find_by_site(site)
+            .unwrap_or_else(|e| logging_with_default_vec(e));
+        if filter_entities.len() == 0 {
+            return vec![];
+        }
+
+        // 필터, 부모 필터 아이디, 루트 필터 여부
+        struct Node(Rc<RefCell<FilterRule>>, Option<i64>, bool);
+        let filter_map: HashMap<i64, Node> = filter_entities.iter()
+            .map(|e| {
+                let rule = Rc::new(RefCell::new(e.to_domain()));
+                (e.id, Node(rule, e.parent_id, e.is_root))
+            })
+            .collect();
+
+        for filter in filter_entities.iter() {
+            let current_node = filter_map.get(&filter.id).unwrap();
+            if let Some(parent) = current_node.1 {
+                let parent_node = filter_map.get(&parent).unwrap();
+                parent_node.0.borrow_mut().add_operand(current_node.0.clone());
+            }
+        }
+
+        filter_map.into_values()
+            .filter(|node| node.2)
+            .map(|node| {
+                // 루트 필터는 부모 필터가 없음 => Rc 카운터가 FilterRule을 만들었을때 한번만 초기화 됨으로 반드시 1
+                Rc::try_unwrap(node.0).unwrap().into_inner()
+            })
+            .collect()
     }
 }
 
