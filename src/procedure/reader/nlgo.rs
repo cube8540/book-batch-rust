@@ -29,6 +29,8 @@ impl FromPublisher for NlgoReader {
             let request = provider::api::Request::builder()
                 .page(page).size(PAGE_SIZE)
                 .query(keyword.to_owned())
+                .start_date(parameter.from.unwrap())
+                .end_date(parameter.to.unwrap())
                 .build().unwrap();
 
             let response = self.client.get_books(&request).unwrap(); // TODO 에러 처리 해야함

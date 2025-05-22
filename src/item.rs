@@ -35,7 +35,7 @@ pub enum Site {
 impl Site {
 
     pub fn from_str(code: &str) -> Result<Self, ItemError> {
-        match code {
+        match code.to_lowercase().as_str() {
             "nlgo" => Ok(Site::NLGO),
             "naver" => Ok(Site::Naver),
             "aladin" => Ok(Site::Aladin),
@@ -286,6 +286,7 @@ impl Book {
     pub fn merge(&self, other: &Book) -> Book {
         let mut new_builder = Self::builder()
             .id(self.id)
+            .title(self.title.clone())
             .isbn(self.isbn.clone())
             .publisher_id(self.publisher_id);
 
