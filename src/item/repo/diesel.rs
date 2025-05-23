@@ -1,5 +1,4 @@
 use crate::item::{Book, BookBuilder, FilterRule, Operator, Site};
-use diesel::associations::HasTable;
 use diesel::prelude::*;
 use diesel::r2d2::ConnectionManager;
 use r2d2::Pool;

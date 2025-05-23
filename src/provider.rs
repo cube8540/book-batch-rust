@@ -1,2 +1,2 @@
 pub mod api;
-pub(crate) mod html;
+pub mod html;

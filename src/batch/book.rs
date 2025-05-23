@@ -9,10 +9,26 @@ use crate::item::{Book, BookBuilder, BookRepository, FilterRepository, Publisher
 use std::collections::{HashMap, HashSet};
 use chrono::NaiveDate;
 
-const PARAM_NAME_PUBLISHER: &'static str = "publisher";
+pub const PARAM_NAME_PUBLISHER: &'static str = "publisher";
 
-const PARAM_NAME_FROM_DT: &'static str = "from_dt";
-const PARAM_NAME_TO_DT: &'static str = "to_dt";
+pub const PARAM_NAME_FROM_DT: &'static str = "from_dt";
+pub const PARAM_NAME_TO_DT: &'static str = "to_dt";
+
+pub trait Provider {
+
+    type Item;
+
+    fn retrieve(&self) -> Self::Item;
+}
+
+impl<T, O> Provider for T where T: Fn() -> O {
+    
+    type Item = O;
+
+    fn retrieve(&self) -> Self::Item {
+        self()
+    }
+}
 
 pub fn retrieve_from_to_in_parameter(params: &JobParameter) -> Result<(NaiveDate, NaiveDate), JobReadFailed> {
     let from_str = params.get(PARAM_NAME_FROM_DT);
@@ -35,7 +51,7 @@ pub fn retrieve_publisher_id_in_parameter(params: &JobParameter) -> Result<Optio
     let publisher_id = params.get(PARAM_NAME_PUBLISHER);
 
     if publisher_id.is_none() {
-        return Ok(None);
+        return Ok(Some(Vec::new()));
     }
 
     let publisher_id_str = publisher_id.unwrap().split(',');
@@ -112,13 +128,13 @@ impl Filter for EmptyIsbnFilter {
     }
 }
 
-pub struct DropDuplIsbnFilter;
+pub struct DropDuplicateIsbnFilter;
 
-pub fn new_drop_dupl_isbn_filter() -> DropDuplIsbnFilter {
-    DropDuplIsbnFilter {}
+pub fn new_drop_duplicate_isbn_filter() -> DropDuplicateIsbnFilter {
+    DropDuplicateIsbnFilter {}
 }
 
-impl Filter for DropDuplIsbnFilter {
+impl Filter for DropDuplicateIsbnFilter {
     type Item = Book;
 
     fn do_filter(&self, items: Vec<Self::Item>) -> Vec<Self::Item> {
@@ -197,10 +213,24 @@ impl Filter for FilterChain {
     }
 }
 
+pub struct PhantomFilter;
+
+impl Filter for PhantomFilter {
+    type Item = Book;
+
+    fn do_filter(&self, items: Vec<Self::Item>) -> Vec<Self::Item> {
+        items
+    }
+}
+
+pub fn new_phantom_filter() -> PhantomFilter {
+    PhantomFilter {}
+}
+
 pub fn create_default_filter_chain() -> FilterChain {
     FilterChain::new()
         .add_filter(Box::new(new_empty_isbn_filter()))
-        .add_filter(Box::new(new_drop_dupl_isbn_filter()))
+        .add_filter(Box::new(new_drop_duplicate_isbn_filter()))
 }
 
 pub struct PhantomProcessor;

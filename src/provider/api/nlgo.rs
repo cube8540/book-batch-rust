@@ -3,7 +3,7 @@ use crate::provider;
 use crate::provider::api::{ClientError, Request};
 use serde::Deserialize;
 use serde_with::serde_as;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::env;
 use std::env::VarError;
 

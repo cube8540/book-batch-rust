@@ -1,6 +1,8 @@
-use book_batch_rust::item::repo::DieselPublisherRepository;
-use book_batch_rust::item::PublisherRepository;
-use book_batch_rust::{configs, create_aladin_job_attr, create_kyobo_job_attr, create_naver_job_attr, create_nlgo_job_attr, from_to, procedure, JobName};
+use book_batch_rust::batch::JobParameter;
+use book_batch_rust::item::repo::{ComposeBookRepository, DieselFilterRepository, DieselPublisherRepository};
+use book_batch_rust::provider::api::{aladin, naver, nlgo};
+use book_batch_rust::provider::html::kyobo;
+use book_batch_rust::{batch, configs, from_to, JobName};
 use tracing::error;
 
 fn main() {
@@ -15,78 +17,57 @@ fn main() {
     
     let connection = configs::connect_to_postgres();
     let mongo_client = configs::connect_to_mongo();
+
     let (from, to) = if let (Some(from), Some(to)) = (args.from, args.to) {
         (from, to)
     } else {
         from_to(30, 60)
     };
-    
-    let publisher_repository = DieselPublisherRepository::new(connection.clone());
+
+    let publisher_repository = || DieselPublisherRepository::new(connection.clone());
+    let book_repository = || ComposeBookRepository::with_origin(connection.clone(), mongo_client.clone());
+    let filter_repository = || DieselFilterRepository::new(connection.clone());
+
+    let mut parameter = JobParameter::new();
+    parameter.insert(batch::book::PARAM_NAME_FROM_DT.to_owned(), from.format("%Y-%m-%d").to_string());
+    parameter.insert(batch::book::PARAM_NAME_TO_DT.to_owned(), to.format("%Y-%m-%d").to_string());
+
     match args.job {
         JobName::NLGO => {
-            let (reader, writer, filter) =
-                create_nlgo_job_attr(connection.clone(), mongo_client.clone());
-            let job = procedure::Job::builder()
-                .reader(Box::new(reader))
-                .writer(Box::new(writer))
-                .filter(Box::new(filter))
-                .build()
-                .unwrap();
-    
-            let publishers = publisher_repository.get_all();
-            for publisher in publishers {
-                let parameter = procedure::Parameter::builder()
-                    .from(from)
-                    .to(to)
-                    .publisher(publisher);
-                job.run(&parameter.build());
-            }
+            let client = || nlgo::Client::new_with_env().unwrap();
+            let job = batch::book::nlgo::create_job(
+                client,
+                publisher_repository,
+                book_repository,
+                filter_repository,
+            );
+            job.run(&parameter).expect("Failed run job");
         }
         JobName::ALADIN => {
-            let (reader, writer, filter) =
-                create_aladin_job_attr(connection.clone(), mongo_client.clone());
-            let job = procedure::Job::builder()
-                .reader(Box::new(reader))
-                .writer(Box::new(writer))
-                .filter(Box::new(filter))
-                .build()
-                .unwrap();
-    
-            let publishers = publisher_repository.get_all();
-            for publisher in publishers {
-                let parameter = procedure::Parameter::builder()
-                    .publisher(publisher);
-                job.run(&parameter.build());
-            }
+            let client = || aladin::Client::new_with_env().unwrap();
+            let job = batch::book::aladin::create_job(
+                client,
+                publisher_repository,
+                book_repository,
+                filter_repository
+            );
+            job.run(&parameter).expect("Failed run job");
         }
         JobName::NAVER => {
-            let (reader, writer) = create_naver_job_attr(connection.clone(), mongo_client.clone());
-            let job = procedure::Job::builder()
-                .reader(Box::new(reader))
-                .writer(Box::new(writer))
-                .build()
-                .unwrap();
-    
-            let parameter = procedure::Parameter::builder()
-                .from(from)
-                .to(to);
-            job.run(&parameter.build());
+            let client = || naver::Client::new_with_env().unwrap();
+            let job = batch::book::naver::create_job(
+                client,
+                book_repository,
+            );
+            job.run(&parameter).expect("Failed run job");
         },
         JobName::KYOBO => {
-            let (reader, writer) = create_kyobo_job_attr(connection.clone(), mongo_client.clone())
-                .unwrap_or_else(|err| {
-                    error!("{:?}", err);
-                    std::process::exit(1);
-                });
-            let job = procedure::Job::builder()
-                .reader(Box::new(reader))
-                .writer(Box::new(writer))
-                .build()
-                .unwrap();
-            let parameter = procedure::Parameter::builder()
-                .from(from)
-                .to(to);
-            job.run(&parameter.build());
+            let client = || kyobo::Client::new(kyobo::chrome::new_provider().unwrap());
+            let job = batch::book::kyobo::create_job(
+                client,
+                book_repository
+            );
+            job.run(&parameter).expect("Failed run job");
         }
     }
 

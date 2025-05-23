@@ -1,6 +1,6 @@
-use crate::batch::book::{create_default_filter_chain, new_drop_dupl_isbn_filter, new_empty_isbn_filter, new_phantom_processor, retrieve_from_to_in_parameter, ByPublisher, FilterChain, OnlyNewBooksWriter, OriginalDataFilter, PhantomProcessor};
+use crate::batch::book::{create_default_filter_chain, new_phantom_processor, retrieve_from_to_in_parameter, ByPublisher, FilterChain, OnlyNewBooksWriter, OriginalDataFilter, PhantomProcessor, Provider};
 use crate::batch::error::JobReadFailed;
-use crate::batch::{Job, JobFactory, JobParameter, Reader};
+use crate::batch::{Job, JobParameter, Reader};
 use crate::item::{Book, BookBuilder, BookRepository, FilterRepository, PublisherRepository, Site};
 use crate::provider;
 use crate::provider::api::{nlgo, Client};
@@ -58,50 +58,25 @@ impl<PubRepo: PublisherRepository> ByPublisher<PubRepo> for NlgoBookReader<PubRe
     }
 }
 
-struct NlgoJobFactory<PR, BR, FR>
+pub fn create_job<PR, BR, FR>(
+    client: impl Provider<Item=nlgo::Client>,
+    publisher_repo: impl Provider<Item=PR>,
+    book_repo: impl Provider<Item=BR>,
+    filter_repo: impl Provider<Item=FR>,
+) -> Job<Book, Book, NlgoBookReader<PR>, FilterChain, PhantomProcessor, OnlyNewBooksWriter<BR>>
 where
     PR: PublisherRepository + 'static,
     BR: BookRepository + 'static,
     FR: FilterRepository + 'static,
 {
-    publisher_repository: PR,
-    book_repository: BR,
-    filter_repository: FR,
-    client: nlgo::Client,
-}
+    let filter_chain = create_default_filter_chain()
+        .add_filter(Box::new(OriginalDataFilter::new(filter_repo.retrieve(), Site::NLGO)));
 
-impl<PR, BR, FR> NlgoJobFactory<PR, BR, FR>
-where
-    PR: PublisherRepository + 'static,
-    BR: BookRepository + 'static,
-    FR: FilterRepository + 'static,
-{
-    pub fn new(publisher_repository: PR, book_repository: BR, filter_repository: FR, client: nlgo::Client) -> Self {
-        Self { publisher_repository, book_repository, filter_repository, client }
-    }
-}
-
-impl<PR, BR, FR> JobFactory<Book, Book> for NlgoJobFactory<PR, BR, FR>
-where
-    PR: PublisherRepository + 'static,
-    BR: BookRepository + 'static,
-    FR: FilterRepository + 'static,
-{
-    type Reader = NlgoBookReader<PR>;
-    type Filter = FilterChain;
-    type Processor = PhantomProcessor;
-    type Writer = OnlyNewBooksWriter<BR>;
-
-    fn create(&self) -> Job<Book, Book, Self::Reader, Self::Filter, Self::Processor, Self::Writer> {
-        let filter_chain = create_default_filter_chain()
-            .add_filter(Box::new(OriginalDataFilter::new(self.filter_repository.clone(), Site::NLGO)));
-
-        Job::builder()
-            .reader(NlgoBookReader::new(self.client.clone(), self.publisher_repository.clone()))
-            .filter(filter_chain)
-            .processor(new_phantom_processor())
-            .writer(OnlyNewBooksWriter::new(self.book_repository.clone()))
-            .build()
-            .unwrap()
-    }
+    Job::builder()
+        .reader(NlgoBookReader::new(client.retrieve(), publisher_repo.retrieve()))
+        .filter(filter_chain)
+        .processor(new_phantom_processor())
+        .writer(OnlyNewBooksWriter::new(book_repo.retrieve()))
+        .build()
+        .unwrap()
 }

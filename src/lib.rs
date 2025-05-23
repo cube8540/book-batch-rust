@@ -1,16 +1,6 @@
-use crate::item::repo::{ComposeBookRepository, DieselFilterRepository};
-use crate::item::Site;
-use crate::procedure::filter::Filter;
-use crate::procedure::reader::Reader;
-use crate::procedure::writer::Writer;
-use crate::provider::html::kyobo::LoginProvider;
-use diesel::r2d2::ConnectionManager;
-use diesel::PgConnection;
-use r2d2::Pool;
 use std::fmt;
 use std::fmt::Formatter;
 
-pub mod procedure;
 pub mod configs;
 pub mod provider;
 pub mod item;
@@ -82,92 +72,6 @@ impl Argument {
             to: Some(to),
         })
     }
-}
-
-
-
-pub fn create_nlgo_job_attr(
-    connection: Pool<ConnectionManager<PgConnection>>,
-    mongo_client: mongodb::sync::Client
-) -> (impl Reader, impl Writer, impl Filter) {
-    let client = provider::api::nlgo::Client::new_with_env()
-        .expect("Failed to create nlgo client");
-    let nlgo_reader = procedure::reader::nlgo::new(client);
-    let writer = procedure::writer::NewBookOnlyWriter::new(
-        ComposeBookRepository::with_origin(connection.clone(), mongo_client.clone())
-    );
-    let filter_chain = create_filter_chain(connection.clone(), Site::NLGO);
-
-    (nlgo_reader, writer, filter_chain)
-}
-
-pub fn create_aladin_job_attr(
-    connection: Pool<ConnectionManager<PgConnection>>,
-    mongo_client: mongodb::sync::Client
-) -> (impl Reader, impl Writer, impl Filter) {
-    let client = provider::api::aladin::Client::new_with_env()
-        .expect("Failed to create aladin client");
-    let aladin_reader = procedure::reader::aladin::new(client);
-    let writer = procedure::writer::UpsertBookWriter::new(
-        ComposeBookRepository::with_origin(connection.clone(), mongo_client.clone())
-    );
-    let filter_chain = create_filter_chain(connection.clone(), Site::Aladin);
-
-    (aladin_reader, writer, filter_chain)
-}
-
-pub fn create_naver_job_attr(
-    connection: Pool<ConnectionManager<PgConnection>>,
-    mongo_client: mongodb::sync::Client
-) -> (impl Reader, impl Writer) {
-    let client = provider::api::naver::Client::new_with_env()
-        .expect("Failed to create naver client");
-    let naver_reader = procedure::reader::naver::new(
-        client,
-        ComposeBookRepository::with_origin(connection.clone(), mongo_client.clone())
-    );
-    let writer = procedure::writer::UpsertBookWriter::new(
-        ComposeBookRepository::with_origin(connection.clone(), mongo_client.clone())
-    );
-
-    (naver_reader, writer)
-}
-
-pub fn create_kyobo_job_attr(
-    connection: Pool<ConnectionManager<PgConnection>>,
-    mongo_client: mongodb::sync::Client
-) -> Result<(impl Reader, impl Writer), ArgumentError> {
-    let mut login_provider = provider::html::kyobo::chrome::new_provider()
-        .expect("Failed to create kyobo login provider");
-
-    _ = login_provider.login()
-        .map_err(|err| ArgumentError::InvalidCredentials(err.to_string()))?;
-
-    let client = provider::html::kyobo::Client::new(login_provider);
-    let kyobo_reader = procedure::reader::kyobo::KyoboReader::new(
-        client,
-        ComposeBookRepository::with_origin(connection.clone(), mongo_client.clone())
-    );
-    let writer = procedure::writer::UpsertBookWriter::new(
-        ComposeBookRepository::with_origin(connection.clone(), mongo_client.clone())
-    );
-
-    Ok((kyobo_reader, writer))
-}
-
-fn create_filter_chain(connection: Pool<ConnectionManager<PgConnection>>, site: Site) -> procedure::filter::FilterChain {
-    let empty_isbn_filter = procedure::filter::EmptyIsbnFilter {};
-    let drop_dup_filter = procedure::filter::DropDuplicatedIsbnFilter {};
-    let origin_data_filter = procedure::filter::OriginDataFilter::new(
-        DieselFilterRepository::new(connection.clone()),
-        site
-    );
-    let mut filter_chain = procedure::filter::FilterChain::new();
-    filter_chain.add_filter(Box::new(empty_isbn_filter));
-    filter_chain.add_filter(Box::new(drop_dup_filter));
-    filter_chain.add_filter(Box::new(origin_data_filter));
-
-    filter_chain
 }
 
 pub fn from_to(sub: u64, add: u64) -> (chrono::NaiveDate, chrono::NaiveDate) {

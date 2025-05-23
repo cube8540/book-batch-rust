@@ -1,7 +1,7 @@
-use crate::batch::book::{create_default_filter_chain, new_phantom_processor, retrieve_from_to_in_parameter, FilterChain, OriginalDataFilter, PhantomProcessor, UpsertBookWriter};
+use crate::batch::book::{new_phantom_filter, new_phantom_processor, retrieve_from_to_in_parameter, PhantomFilter, PhantomProcessor, Provider, UpsertBookWriter};
 use crate::batch::error::JobReadFailed;
-use crate::batch::{Job, JobFactory, JobParameter, Reader};
-use crate::item::{Book, BookRepository, FilterRepository, Site};
+use crate::batch::{Job, JobParameter, Reader};
+use crate::item::{Book, BookRepository};
 use crate::provider;
 use crate::provider::api::{naver, Client};
 
@@ -36,23 +36,18 @@ impl<BookRepo: BookRepository> Reader for NaverReader<BookRepo> {
     }
 }
 
-pub fn create_job<BR, FR>(
-    client: naver::Client,
-    book_repository: BR,
-    filter_repository: FR
-) -> Job<Book, Book, NaverReader<BR>, FilterChain, PhantomProcessor, UpsertBookWriter<BR>>
+pub fn create_job<BR>(
+    client: impl Provider<Item=naver::Client>,
+    book_repo: impl Provider<Item=BR>,
+) -> Job<Book, Book, NaverReader<BR>, PhantomFilter, PhantomProcessor, UpsertBookWriter<BR>>
 where
-    BR: BookRepository,
-    FR: FilterRepository,
+    BR: BookRepository + 'static,
 {
-    let filter_chain = create_default_filter_chain()
-        .add_filter(Box::new(OriginalDataFilter::new(filter_repository, Site::Naver)));
-
     Job::builder()
-        .reader(NaverReader::new(client, book_repository))
-        .filter(filter_chain)
+        .reader(NaverReader::new(client.retrieve(), book_repo.retrieve()))
+        .filter(new_phantom_filter())
         .processor(new_phantom_processor())
-        .writer(UpsertBookWriter::new(book_repository))
+        .writer(UpsertBookWriter::new(book_repo.retrieve()))
         .build()
         .unwrap()
 }

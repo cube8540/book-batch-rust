@@ -1,3 +1,4 @@
+#[derive(Debug)]
 pub enum JobRuntimeError<I, O> {
     ReadFailed(JobReadFailed),
     ProcessFailed(JobProcessFailed<I>),
