@@ -14,11 +14,12 @@ const AGENT: &'static str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebK
 const KYOBO_DOMAIN: &'static str = "https://www.kyobobook.co.kr";
 const ISBN_SEARCH_ENDPOINT: &'static str = "https://www.kyobobook.co.kr/product/detailViewKor.laf";
 
-type CookieValue = String;
 pub trait LoginProvider {
+    type CookieValue: AsRef<str>;
+
     fn login(&mut self) -> Result<(), ParsingError>;
     
-    fn get_cookies(&self) -> Result<Vec<CookieValue>, ParsingError>;
+    fn get_cookies(&self) -> Result<Vec<Self::CookieValue>, ParsingError>;
 }
 
 pub struct Client<P>
@@ -49,7 +50,7 @@ where
         let cookies = self.login_provider.get_cookies()?;
 
         for cookie in cookies {
-            cookie_store.add_cookie_str(&cookie, &KYOBO_DOMAIN.parse().unwrap());
+            cookie_store.add_cookie_str(cookie.as_ref(), &KYOBO_DOMAIN.parse().unwrap());
         }
 
         let client = reqwest::blocking::Client::builder()

@@ -1,4 +1,4 @@
-use crate::provider::html::kyobo::{CookieValue, LoginProvider};
+use crate::provider::html::kyobo::LoginProvider;
 use crate::provider::html::ParsingError;
 use std::env;
 use std::env::VarError;
@@ -35,6 +35,8 @@ pub fn new_provider() -> Result<ChromeDriverLoginProvider, VarError> {
 }
 
 impl LoginProvider for ChromeDriverLoginProvider {
+    type CookieValue = String;
+
     fn login(&mut self) -> Result<(), ParsingError> {
         let mut caps = DesiredCapabilities::chrome();
         caps.add_chrome_arg(&format!("--user-agent={}", AGENT))
@@ -83,7 +85,7 @@ impl LoginProvider for ChromeDriverLoginProvider {
         Ok(())
     }
 
-    fn get_cookies(&self) -> Result<Vec<CookieValue>, ParsingError> {
+    fn get_cookies(&self) -> Result<Vec<Self::CookieValue>, ParsingError> {
         if let Some(token) = self.access_token.as_ref() {
             let access_token = format!("accessToken={}; Domain={}; Path=/; Secure", token, COOKIE_DOMAIN);
             Ok(vec![access_token])
