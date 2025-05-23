@@ -25,13 +25,15 @@ pub fn new_provider() -> Result<ChromeDriverLoginProvider, VarError> {
 
     let server_url = env::var("CHROMEDRIVER_URL")?;
 
-    Ok(ChromeDriverLoginProvider {
+    let mut provider = ChromeDriverLoginProvider {
         server_url,
         id,
         pw,
         access_token: None,
         last_login_at: None,
-    })
+    };
+    provider.login().unwrap();
+    Ok(provider)
 }
 
 impl LoginProvider for ChromeDriverLoginProvider {
