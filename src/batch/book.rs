@@ -6,30 +6,32 @@ pub mod kyobo;
 use crate::batch::error::{JobProcessFailed, JobReadFailed, JobWriteFailed};
 use crate::batch::{Filter, JobParameter, Processor, Reader, Writer};
 use crate::item::{Book, BookBuilder, BookRepository, FilterRepository, Publisher, PublisherRepository, Site};
-use std::collections::{HashMap, HashSet};
 use chrono::NaiveDate;
+use std::collections::{HashMap, HashSet};
 
 pub const PARAM_NAME_PUBLISHER: &'static str = "publisher";
 
 pub const PARAM_NAME_FROM_DT: &'static str = "from_dt";
 pub const PARAM_NAME_TO_DT: &'static str = "to_dt";
 
-pub trait Provider {
-
-    type Item;
-
-    fn retrieve(&self) -> Self::Item;
-}
-
-impl<T, O> Provider for T where T: Fn() -> O {
-    
-    type Item = O;
-
-    fn retrieve(&self) -> Self::Item {
-        self()
-    }
-}
-
+/// [`JobParameter`]에서 `시작일`과 `종료일`을 얻어 [`NaiveDate`]로 반환한다.
+/// 시작일의 키는 `from_dt` 종료일의 키는 `to_dt`를 사용한다. 시작일과 종료일은 `%Y-%m-%d` 포멧으로 파싱하며
+/// 파싱 실패시 `JobReadFailed` 에러를 반환한다.
+///
+/// # Example
+/// ```
+/// use chrono::NaiveDate;
+/// use book_batch_rust::batch::book::retrieve_from_to_in_parameter;
+/// use book_batch_rust::batch::JobParameter;
+///
+/// let mut params = JobParameter::new();
+/// params.insert("from_dt".to_owned(), "2025-05-01".to_owned());
+/// params.insert("to_dt".to_owned(), "2025-05-31".to_owned());
+///
+/// let (from, to) = retrieve_from_to_in_parameter(&params).unwrap();
+/// assert_eq!(from, NaiveDate::from_ymd_opt(2025, 5, 1).unwrap());
+/// assert_eq!(to, NaiveDate::from_ymd_opt(2025, 5, 31).unwrap());
+/// ```
 pub fn retrieve_from_to_in_parameter(params: &JobParameter) -> Result<(NaiveDate, NaiveDate), JobReadFailed> {
     let from_str = params.get(PARAM_NAME_FROM_DT);
     let to_str = params.get(PARAM_NAME_TO_DT);
@@ -47,23 +49,44 @@ pub fn retrieve_from_to_in_parameter(params: &JobParameter) -> Result<(NaiveDate
     Ok((from, to))
 }
 
-pub fn retrieve_publisher_id_in_parameter(params: &JobParameter) -> Result<Option<Vec<u64>>, JobReadFailed> {
+/// [`JobParameter`]에서 `publisher`를 키로 사용하여 출판사 아이디를 얻어온다.
+/// 만약 `JobParameter`에 출판사 아이디가 없을 경우 빈 `Vec`를 반환한다.
+///
+/// 출판사 아이디는 모두 `u64`로 되어 있으며 콤마(,)로 구분 한다. 만약 `u64`로 파싱 할 수 없을 경우 `JobReadFailed` 에러를 반환한다.
+///
+/// # Example
+/// ```
+/// use book_batch_rust::batch::book::retrieve_publisher_id_in_parameter;
+/// use book_batch_rust::batch::JobParameter;
+///
+/// let mut parameter = JobParameter::new();
+///
+/// // 출판사가 아이디가 없을 경우 빈 `Vec`를 반환한다.
+/// let publisher_id = retrieve_publisher_id_in_parameter(&parameter).unwrap();
+/// assert_eq!(publisher_id, Vec::<u64>::new());
+///
+/// // 출판사 아이디를 콤마(,)로 구분하고 `u64` 타입으로 변환하여 반환한다.
+/// parameter.insert("publisher".to_owned(), "1, 2, 3".to_owned());
+/// let publisher_id = retrieve_publisher_id_in_parameter(&parameter).unwrap();
+/// assert_eq!(publisher_id, vec![1,2,3]);
+/// ```
+pub fn retrieve_publisher_id_in_parameter(params: &JobParameter) -> Result<Vec<u64>, JobReadFailed> {
     let publisher_id = params.get(PARAM_NAME_PUBLISHER);
 
     if publisher_id.is_none() {
-        return Ok(Some(Vec::new()));
+        return Ok(Vec::new());
     }
 
     let publisher_id_str = publisher_id.unwrap().split(',');
     let publisher_ids: Result<Vec<u64>, JobReadFailed> = publisher_id_str
         .map(|s| {
-            s.parse::<u64>()
+            s.trim().parse::<u64>()
                 .map_err(|e| JobReadFailed::InvalidArguments(e.to_string()))
         })
         .collect();
 
     match publisher_ids {
-        Ok(ids) => Ok(Some(ids)),
+        Ok(ids) => Ok(ids),
         Err(err) => Err(err),
     }
 }
@@ -78,17 +101,12 @@ pub trait ByPublisher<Repo: PublisherRepository>: Reader<Item=Book> {
 
     fn load_publisher(&self, params: &JobParameter) -> Result<Vec<Publisher>, JobReadFailed> {
         let publisher_id = retrieve_publisher_id_in_parameter(params)?;
-        match publisher_id {
-            None => Err(JobReadFailed::InvalidArguments("No publisher id specified".to_string())),
-            Some(id) => {
-                let publisher = if !id.is_empty() {
-                    self.repository().find_by_id(&id)
-                } else {
-                    self.repository().get_all()
-                };
-                Ok(publisher)
-            }
-        }
+        let publisher = if !publisher_id.is_empty() {
+            self.repository().find_by_id(&publisher_id)
+        } else {
+            self.repository().get_all()
+        };
+        Ok(publisher)
     }
 
     fn read_books(&self, params: &JobParameter) -> Result<Vec<Book>, JobReadFailed> {
@@ -213,39 +231,10 @@ impl Filter for FilterChain {
     }
 }
 
-pub struct PhantomFilter;
-
-impl Filter for PhantomFilter {
-    type Item = Book;
-
-    fn do_filter(&self, items: Vec<Self::Item>) -> Vec<Self::Item> {
-        items
-    }
-}
-
-pub fn new_phantom_filter() -> PhantomFilter {
-    PhantomFilter {}
-}
-
 pub fn create_default_filter_chain() -> FilterChain {
     FilterChain::new()
         .add_filter(Box::new(new_empty_isbn_filter()))
         .add_filter(Box::new(new_drop_duplicate_isbn_filter()))
-}
-
-pub struct PhantomProcessor;
-
-pub fn new_phantom_processor() -> PhantomProcessor {
-    PhantomProcessor {}
-}
-
-impl Processor for PhantomProcessor {
-    type In = Book;
-    type Out = Book;
-
-    fn do_process(&self, item: Self::In) -> Result<Self::Out, JobProcessFailed<Self::In>> {
-        Ok(item)
-    }
 }
 
 pub struct OnlyNewBooksWriter<Repo: BookRepository> {

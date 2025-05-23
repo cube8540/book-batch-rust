@@ -1,6 +1,6 @@
-use crate::batch::book::{retrieve_from_to_in_parameter, PhantomFilter, PhantomProcessor, Provider, UpsertBookWriter};
+use crate::batch::book::{retrieve_from_to_in_parameter, UpsertBookWriter};
 use crate::batch::error::JobReadFailed;
-use crate::batch::{Job, JobParameter, Reader};
+use crate::batch::{Job, JobParameter, PhantomFilter, PhantomProcessor, Provider, Reader};
 use crate::item::{Book, BookRepository};
 use crate::provider::html::{kyobo, Client};
 
@@ -46,14 +46,14 @@ where
 pub fn create_job<LP, BR>(
     client: impl Provider<Item=kyobo::Client<LP>>,
     book_repo: impl Provider<Item=BR>,
-) -> Job<Book, Book, KyoboReader<LP, BR>, PhantomFilter, PhantomProcessor, UpsertBookWriter<BR>>
+) -> Job<Book, Book, KyoboReader<LP, BR>, PhantomFilter<Book>, PhantomProcessor<Book>, UpsertBookWriter<BR>>
 where
     LP: kyobo::LoginProvider,
     BR: BookRepository + 'static {
     Job::builder()
         .reader(KyoboReader::new(client.retrieve(), book_repo.retrieve()))
-        .filter(PhantomFilter)
-        .processor(PhantomProcessor)
+        .filter(PhantomFilter::new())
+        .processor(PhantomProcessor::new())
         .writer(UpsertBookWriter::new(book_repo.retrieve()))
         .build()
         .unwrap()

@@ -1,6 +1,6 @@
-use crate::batch::book::{create_default_filter_chain, new_phantom_processor, ByPublisher, FilterChain, OriginalDataFilter, PhantomProcessor, Provider, UpsertBookWriter};
+use crate::batch::book::{create_default_filter_chain, ByPublisher, FilterChain, OriginalDataFilter, UpsertBookWriter};
 use crate::batch::error::JobReadFailed;
-use crate::batch::{Job, JobParameter, Reader};
+use crate::batch::{Job, JobParameter, PhantomProcessor, Provider, Reader};
 use crate::item::{Book, BookBuilder, BookRepository, FilterRepository, PublisherRepository, Site};
 use crate::provider;
 use crate::provider::api::{aladin, Client};
@@ -67,7 +67,7 @@ pub fn create_job<PR, BR, FR>(
     publisher_repo: impl Provider<Item=PR>,
     book_repo: impl Provider<Item=BR>,
     filter_repo: impl Provider<Item=FR>,
-) -> Job<Book, Book, AladinReader<PR>, FilterChain, PhantomProcessor, UpsertBookWriter<BR>>
+) -> Job<Book, Book, AladinReader<PR>, FilterChain, PhantomProcessor<Book>, UpsertBookWriter<BR>>
 where
     PR: PublisherRepository + 'static,
     BR: BookRepository + 'static,
@@ -79,7 +79,7 @@ where
     Job::builder()
         .reader(AladinReader::new(client.retrieve(), publisher_repo.retrieve()))
         .filter(filter_chain)
-        .processor(new_phantom_processor())
+        .processor(PhantomProcessor::new())
         .writer(UpsertBookWriter::new(book_repo.retrieve()))
         .build()
         .unwrap()

@@ -1,6 +1,6 @@
-use crate::batch::book::{create_default_filter_chain, new_phantom_processor, retrieve_from_to_in_parameter, ByPublisher, FilterChain, OnlyNewBooksWriter, OriginalDataFilter, PhantomProcessor, Provider};
+use crate::batch::book::{create_default_filter_chain, retrieve_from_to_in_parameter, ByPublisher, FilterChain, OnlyNewBooksWriter, OriginalDataFilter};
 use crate::batch::error::JobReadFailed;
-use crate::batch::{Job, JobParameter, Reader};
+use crate::batch::{Job, JobParameter, PhantomProcessor, Provider, Reader};
 use crate::item::{Book, BookBuilder, BookRepository, FilterRepository, PublisherRepository, Site};
 use crate::provider;
 use crate::provider::api::{nlgo, Client};
@@ -63,7 +63,7 @@ pub fn create_job<PR, BR, FR>(
     publisher_repo: impl Provider<Item=PR>,
     book_repo: impl Provider<Item=BR>,
     filter_repo: impl Provider<Item=FR>,
-) -> Job<Book, Book, NlgoBookReader<PR>, FilterChain, PhantomProcessor, OnlyNewBooksWriter<BR>>
+) -> Job<Book, Book, NlgoBookReader<PR>, FilterChain, PhantomProcessor<Book>, OnlyNewBooksWriter<BR>>
 where
     PR: PublisherRepository + 'static,
     BR: BookRepository + 'static,
@@ -75,7 +75,7 @@ where
     Job::builder()
         .reader(NlgoBookReader::new(client.retrieve(), publisher_repo.retrieve()))
         .filter(filter_chain)
-        .processor(new_phantom_processor())
+        .processor(PhantomProcessor::new())
         .writer(OnlyNewBooksWriter::new(book_repo.retrieve()))
         .build()
         .unwrap()

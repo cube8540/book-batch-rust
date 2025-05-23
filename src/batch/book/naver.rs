@@ -1,6 +1,6 @@
-use crate::batch::book::{new_phantom_filter, new_phantom_processor, retrieve_from_to_in_parameter, PhantomFilter, PhantomProcessor, Provider, UpsertBookWriter};
+use crate::batch::book::{retrieve_from_to_in_parameter, UpsertBookWriter};
 use crate::batch::error::JobReadFailed;
-use crate::batch::{Job, JobParameter, Reader};
+use crate::batch::{Job, JobParameter, PhantomFilter, PhantomProcessor, Provider, Reader};
 use crate::item::{Book, BookRepository};
 use crate::provider;
 use crate::provider::api::{naver, Client};
@@ -39,14 +39,14 @@ impl<BookRepo: BookRepository> Reader for NaverReader<BookRepo> {
 pub fn create_job<BR>(
     client: impl Provider<Item=naver::Client>,
     book_repo: impl Provider<Item=BR>,
-) -> Job<Book, Book, NaverReader<BR>, PhantomFilter, PhantomProcessor, UpsertBookWriter<BR>>
+) -> Job<Book, Book, NaverReader<BR>, PhantomFilter<Book>, PhantomProcessor<Book>, UpsertBookWriter<BR>>
 where
     BR: BookRepository + 'static,
 {
     Job::builder()
         .reader(NaverReader::new(client.retrieve(), book_repo.retrieve()))
-        .filter(new_phantom_filter())
-        .processor(new_phantom_processor())
+        .filter(PhantomFilter::new())
+        .processor(PhantomProcessor::new())
         .writer(UpsertBookWriter::new(book_repo.retrieve()))
         .build()
         .unwrap()
