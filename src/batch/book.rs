@@ -3,8 +3,8 @@ pub mod naver;
 pub mod aladin;
 pub mod kyobo;
 
-use crate::batch::error::{JobProcessFailed, JobReadFailed, JobWriteFailed};
-use crate::batch::{Filter, JobParameter, Processor, Reader, Writer};
+use crate::batch::error::{JobReadFailed, JobWriteFailed};
+use crate::batch::{Filter, JobParameter, Reader, Writer};
 use crate::item::{Book, BookBuilder, BookRepository, FilterRepository, Publisher, PublisherRepository, Site};
 use chrono::NaiveDate;
 use std::collections::{HashMap, HashSet};
