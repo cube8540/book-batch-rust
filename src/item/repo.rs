@@ -1,4 +1,4 @@
-use crate::item::repo::diesel::{BookEntity, BookOriginFilterPgStore, BookPgStore, PublisherPgStore};
+use crate::item::repo::diesel::{BookEntity, BookOriginFilterPgStore, BookPgStore, PublisherEntity, PublisherKeywordEntity, PublisherPgStore};
 use crate::item::repo::mongo::BookOriginDataStore;
 use crate::item::{Book, BookRepository, FilterRepository, FilterRule, Publisher, PublisherRepository, Raw, Site};
 use chrono::NaiveDate;
@@ -151,12 +151,12 @@ impl BookRepository for ComposeBookRepository {
         let book_entities = self.book_store
             .find_series_unorganized(limit)
             .unwrap_or_else(|e| logging_with_default_vec(e));
-        
+
         let mut originals = match self.with_origin {
             true => self.load_original_data(&book_entities),
             false => HashMap::new(),
         };
-        
+
         book_entities.into_iter()
             .map(|entity| compose_entity_with_original(entity, &mut originals))
             .collect()
@@ -166,12 +166,12 @@ impl BookRepository for ComposeBookRepository {
         let book_entities = self.book_store
             .find_by_series_id(series_id)
             .unwrap_or_else(|e| logging_with_default_vec(e));
-        
+
         let mut originals = match self.with_origin {
             true => self.load_original_data(&book_entities),
             false => HashMap::new(),
         };
-        
+
         book_entities.into_iter()
             .map(|entity| compose_entity_with_original(entity, &mut originals))
             .collect()
@@ -198,20 +198,16 @@ impl PublisherRepository for DieselPublisherRepository {
         if publisher_with_keywords.len() == 0 {
             return vec![];
         }
+        map_with_keyword(publisher_with_keywords)
+    }
 
-        let mut publisher_map: HashMap<i64, Publisher> = HashMap::new();
-        for (publisher, keyword) in publisher_with_keywords.iter() {
-            let publisher = publisher_map.entry(publisher.id)
-                .or_insert_with(|| {
-                    Publisher::without_keywords(publisher.id as u64, publisher.name.clone())
-                });
-
-            if let Some(keyword) = keyword {
-                publisher.add_keyword(Site::from_str(keyword.site.as_str()).unwrap(), keyword.keyword.clone());
-            }
+    fn find_by_id(&self, id: &[u64]) -> Vec<Publisher> {
+        let publisher_with_keyword = self.store.find_by_id(id)
+            .unwrap_or_else(|e| logging_with_default_vec(e));
+        if publisher_with_keyword.len() == 0 {
+            return vec![]
         }
-
-        publisher_map.into_values().collect()
+        map_with_keyword(publisher_with_keyword)
     }
 }
 
@@ -285,4 +281,20 @@ where
 {
     error!("{:?}", e);
     vec![]
+}
+
+fn map_with_keyword(publisher_with_keywords: Vec<(PublisherEntity, Option<PublisherKeywordEntity>)>) -> Vec<Publisher> {
+    let mut publisher_map: HashMap<i64, Publisher> = HashMap::new();
+    for (publisher, keyword) in publisher_with_keywords.iter() {
+        let publisher = publisher_map.entry(publisher.id)
+            .or_insert_with(|| {
+                Publisher::without_keywords(publisher.id as u64, publisher.name.clone())
+            });
+
+        if let Some(keyword) = keyword {
+            publisher.add_keyword(Site::from_str(keyword.site.as_str()).unwrap(), keyword.keyword.clone());
+        }
+    }
+
+    publisher_map.into_values().collect()
 }

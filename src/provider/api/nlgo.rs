@@ -122,6 +122,7 @@ pub struct Response {
 }
 
 /// 국립중앙도서관 API 클라이언트
+#[derive(Clone)]
 pub struct Client {
     /// API 인증 키
     key: String

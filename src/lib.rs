@@ -14,6 +14,7 @@ pub mod procedure;
 pub mod configs;
 pub mod provider;
 pub mod item;
+pub mod batch;
 
 #[derive(Debug)]
 pub enum ArgumentError {

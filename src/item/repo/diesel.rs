@@ -1,10 +1,10 @@
-use std::str::FromStr;
 use crate::item::{Book, BookBuilder, FilterRule, Operator, Site};
 use diesel::associations::HasTable;
 use diesel::prelude::*;
 use diesel::r2d2::ConnectionManager;
 use r2d2::Pool;
 use regex::Regex;
+use std::str::FromStr;
 
 mod schema;
 
@@ -265,6 +265,27 @@ impl PublisherPgStore {
 
         Ok(publisher_with_keywords)
     }
+
+    pub fn find_by_id(&self, id: &[u64]) -> Result<Vec<(PublisherEntity, Option<PublisherKeywordEntity>)>, Error> {
+        use schema::books::publisher;
+        use schema::books::publisher_keyword;
+
+        let id = id.iter().map(|i| i.clone() as i64).collect::<Vec<_>>();
+        let mut connection = self.pool.get()
+            .map_err(|e| Error::ConnectError(e.to_string()))?;
+
+        let publisher_with_keywords = publisher::table
+            .left_join(publisher_keyword::table)
+            .filter(publisher::id.eq_any(&id))
+            .select((
+                PublisherEntity::as_select(),
+                Option::<PublisherKeywordEntity>::as_select()
+            ))
+            .load::<(PublisherEntity, Option<PublisherKeywordEntity>)>(&mut connection)
+            .map_err(|e| Error::SqlExecuteError(e.to_string()))?;
+
+        Ok(publisher_with_keywords)
+    }
 }
 
 #[derive(Queryable, Selectable)]
@@ -321,7 +342,7 @@ impl BookOriginFilterPgStore {
 
 impl BookOriginFilterPgStore {
     pub fn find_by_site(&self, site: &Site) -> Result<Vec<BookOriginFilterEntity>, Error> {
-        use schema::books::book_origin_filter::dsl::{book_origin_filter};
+        use schema::books::book_origin_filter::dsl::book_origin_filter;
         use schema::books::book_origin_filter::dsl::site as db_site;
 
         let mut connection = self.pool.get()

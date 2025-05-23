@@ -94,6 +94,9 @@ pub trait PublisherRepository {
 
     /// 모든 출판사를 가져온다.
     fn get_all(&self) -> Vec<Publisher>;
+
+    /// 전달 받은 아이디로 출판사를 찾는다.
+    fn find_by_id(&self, id: &[u64]) -> Vec<Publisher>;
 }
 
 /// 도서 시리즈
