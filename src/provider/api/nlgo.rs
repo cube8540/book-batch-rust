@@ -63,20 +63,20 @@ impl Doc {
     fn to_map(&self) -> HashMap<String, String> {
         let mut map = HashMap::new();
 
-        map.insert("TITLE".to_string(), self.title.clone());
-        map.insert("EA_ISBN".to_string(), self.ea_isbn.clone());
-        map.insert("SET_ISBN".to_string(), self.set_isbn.clone());
-        map.insert("EA_ADD_CODE".to_string(), self.ea_add_code.clone());
-        map.insert("SET_ADD_CODE".to_string(), self.set_add_code.clone());
-        map.insert("SERIES_NO".to_string(), self.series_no.clone());
-        map.insert("SET_EXPRESSION".to_string(), self.set_expression.clone());
-        map.insert("SUBJECT".to_string(), self.subject.clone());
-        map.insert("PUBLISHER".to_string(), self.publisher.clone());
-        map.insert("AUTHOR".to_string(), self.author.clone());
-        map.insert("REAL_PUBLISH_DATE".to_string(), self.real_publish_date.clone());
-        map.insert("PUBLISH_PREDATE".to_string(), self.publish_predate.clone());
-        map.insert("UPDATE_DATE".to_string(), self.update_date.clone());
-        map.insert("PRE_PRICE".to_string(), self.price.clone());
+        map.insert("title".to_string(), self.title.clone());
+        map.insert("ea_isbn".to_string(), self.ea_isbn.clone());
+        map.insert("set_isbn".to_string(), self.set_isbn.clone());
+        map.insert("ea_add_code".to_string(), self.ea_add_code.clone());
+        map.insert("set_add_code".to_string(), self.set_add_code.clone());
+        map.insert("series_no".to_string(), self.series_no.clone());
+        map.insert("set_expression".to_string(), self.set_expression.clone());
+        map.insert("subject".to_string(), self.subject.clone());
+        map.insert("publisher".to_string(), self.publisher.clone());
+        map.insert("author".to_string(), self.author.clone());
+        map.insert("real_publish_date".to_string(), self.real_publish_date.clone());
+        map.insert("publish_predate".to_string(), self.publish_predate.clone());
+        map.insert("update_date".to_string(), self.update_date.clone());
+        map.insert("pre_price".to_string(), self.price.clone());
 
         map
     }
