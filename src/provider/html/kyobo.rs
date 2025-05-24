@@ -1,12 +1,13 @@
 pub mod chrome;
+mod utiles;
 
-use crate::item::{Book, BookBuilder, Site};
+use crate::item::{Book, BookBuilder, Raw, Site};
 use crate::provider::html;
+use crate::provider::html::kyobo::utiles::{retrieve_author, retrieve_desc_img, retrieve_isbn, retrieve_item_id, retrieve_price, retrieve_prod_desc, retrieve_thumbnail, retrieve_title};
 use crate::provider::html::ParsingError;
 use reqwest::cookie::Jar;
 use reqwest::Url;
-use scraper::{Html, Selector};
-use std::collections::HashMap;
+use scraper::Html;
 use std::sync::Arc;
 
 const AGENT: &'static str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.149 Safari/537.36";
@@ -70,44 +71,41 @@ where
 }
 
 fn html_to_book(document: &Html) -> Result<BookBuilder, ParsingError> {
-    let isbn_meta_selector = Selector::parse("meta[property=\"books:isbn\"]").unwrap();
-    let isbn_meta_element = document.select(&isbn_meta_selector).next();
+    let item_id = retrieve_item_id(document)
+        .ok_or_else(|| ParsingError::ItemNotFound)?;
+    let isbn = retrieve_isbn(document)
+        .ok_or_else(|| ParsingError::ItemNotFound)?;
+    let title = retrieve_title(document)
+        .ok_or_else(|| ParsingError::ElementNotFound("title is not found".to_owned()))?;
 
-    if isbn_meta_element.is_none() {
-        return Err(ParsingError::ItemNotFound)
-    }
-    let isbn = isbn_meta_element.unwrap().attr("content").unwrap();
+    let thumbnail_url = retrieve_thumbnail(document);
+    let prod_img_url = retrieve_desc_img(document);
+    let prod_desc = retrieve_prod_desc(document);
+    let (sale_price, standard_price) = retrieve_price(document);
+    let author = retrieve_author(document);
 
-    let title_selector = Selector::parse(".prod_title").unwrap();
-    let title_element = document.select(&title_selector).next();
-    if title_element.is_none() {
-        return Err(ParsingError::ElementNotFound(".prod_title is not found".to_owned()));
-    }
-    let title = title_element.unwrap().inner_html();
-
-    let thumbnail_selector = Selector::parse("#contents .prod_detail_header .prod_detail_view_wrap .prod_detail_view_area .thumb .portrait_img_box img").unwrap();
-    let thumbnail_element = document.select(&thumbnail_selector).next();
-    let thumbnail_url = thumbnail_element.map(|e| e.attr("src").unwrap().to_owned());
-
-    let prod_img_selector = Selector::parse("#scrollSpyProdInfo .product_detail_area.detail_img img").unwrap();
-    let prod_img_element = document.select(&prod_img_selector).next();
-    let prod_img_url = prod_img_element.map(|e| e.attr("src").unwrap().to_owned());
-
-    let prod_description_selector = Selector::parse("#scrollSpyProdInfo .product_detail_area.book_intro .intro_bottom .info_text").unwrap();
-    let prod_description_element = document.select(&prod_description_selector).next();
-    let prod_description = prod_description_element.map(|e| e.inner_html());
-
-    let mut origin_data: HashMap<String, String> = HashMap::new();
+    let mut origin_data = Raw::new();
+    origin_data.insert("item_id".to_owned(), item_id.to_owned());
     origin_data.insert("isbn".to_owned(), isbn.to_owned());
     origin_data.insert("title".to_owned(), title.clone());
+    
     if let Some(thumbnail_url) = thumbnail_url {
         origin_data.insert("thumbnail_url".to_owned(), thumbnail_url);
     }
     if let Some(prod_img_url) = prod_img_url {
         origin_data.insert("prod_img_url".to_owned(), prod_img_url);
     }
-    if let Some(prod_description) = prod_description {
-        origin_data.insert("prod_description".to_owned(), prod_description);
+    if prod_desc.is_some() {
+        origin_data.insert("prod_description".to_owned(), prod_desc.unwrap());
+    }
+    if sale_price.is_some() {
+        origin_data.insert("sale_price".to_owned(), sale_price.unwrap().to_string());
+    }
+    if standard_price.is_some() {
+        origin_data.insert("standard_price".to_owned(), standard_price.unwrap().to_string());
+    }
+    if author.is_some() {
+        origin_data.insert("author".to_owned(), author.unwrap());
     }
 
     let builder = Book::builder()

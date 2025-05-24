@@ -2,7 +2,8 @@ use crate::batch::book::{retrieve_from_to_in_parameter, UpsertBookWriter};
 use crate::batch::error::JobReadFailed;
 use crate::batch::{Job, JobParameter, PhantomFilter, PhantomProcessor, Provider, Reader};
 use crate::item::{Book, BookRepository};
-use crate::provider::html::{kyobo, Client};
+use crate::provider::html::{kyobo, Client, ParsingError};
+use tracing::error;
 
 pub struct KyoboReader<LP, BookRepo>
 where
@@ -32,14 +33,27 @@ where
 
     fn do_read(&self, params: &JobParameter) -> Result<Vec<Self::Item>, JobReadFailed> {
         let (from, to) = retrieve_from_to_in_parameter(params)?;
-        self.book_repository.find_by_pub_between(&from, &to).into_iter()
-            .filter(|book| book.actual_pub_date().is_some())
-            .map(|book| {
-                self.client.get(book.isbn())
-                    .map(|parsed_book| parsed_book.build().unwrap())
-                    .map_err(|e| JobReadFailed::UnknownError(e.to_string()))
-            })
-            .collect()
+
+        let mut result = Vec::new();
+        for book in self.book_repository.find_by_pub_between(&from, &to) {
+            let response = self.client.get(book.isbn());
+            if response.is_ok() {
+                let builder = response.unwrap();
+                result.push(builder.build().unwrap());
+            } else {
+                let err = response.unwrap_err();
+                match err {
+                    // Item을 찾을 수 없다는 에러는 무시 한다.
+                    ParsingError::ItemNotFound => {
+                        error!("Item not found: {}({})", book.id(), book.isbn());
+                    }
+                    _ => {
+                        return Err(JobReadFailed::UnknownError(err.to_string()));
+                    }
+                }
+            }
+        }
+        Ok(result)
     }
 }
 
