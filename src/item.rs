@@ -46,10 +46,10 @@ impl Site {
 
     pub fn to_code_str(&self) -> String {
         match self {
-            Site::NLGO => "nlgo".to_owned(),
-            Site::Naver => "naver".to_owned(),
-            Site::Aladin => "aladin".to_owned(),
-            Site::KyoboBook => "kyobo".to_owned()
+            Site::NLGO => "NLGO".to_owned(),
+            Site::Naver => "NAVER".to_owned(),
+            Site::Aladin => "ALADIN".to_owned(),
+            Site::KyoboBook => "KYOBO".to_owned()
         }
     }
 }
