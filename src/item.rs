@@ -496,6 +496,46 @@ impl Book {
 
         new_builder.build().unwrap()
     }
+
+    pub fn to_builder(&self) -> BookBuilder {
+        let mut builder = BookBuilder::new()
+            .id(self.id)
+            .isbn(self.isbn.clone())
+            .publisher_id(self.publisher_id)
+            .title(self.title.clone());
+
+        // series_id가 있는 경우 추가
+        if let Some(series_id) = self.series_id {
+            builder = builder.series_id(series_id);
+        }
+
+        // scheduled_pub_date가 있는 경우 추가
+        if let Some(scheduled_date) = self.scheduled_pub_date {
+            builder = builder.scheduled_pub_date(scheduled_date);
+        }
+
+        // actual_pub_date가 있는 경우 추가
+        if let Some(actual_date) = self.actual_pub_date {
+            builder = builder.actual_pub_date(actual_date);
+        }
+
+        // registered_at이 있는 경우 추가
+        if let Some(registered_at) = self.registered_at {
+            builder = builder.registered_at(registered_at);
+        }
+
+        // modified_at이 있는 경우 추가
+        if let Some(modified_at) = self.modified_at {
+            builder = builder.modified_at(modified_at);
+        }
+
+        // originals 데이터 추가
+        for (site, raw) in &self.originals {
+            builder = builder.add_original(*site, raw.clone());
+        }
+
+        builder
+    }
 }
 
 impl AsRef<Book> for Book {
@@ -567,6 +607,13 @@ impl BookBuilder {
 
     pub fn add_original(mut self, site: Site, raw: Raw) -> Self {
         self.originals.insert(site, raw);
+        self
+    }
+    
+    pub fn add_original_raw(mut self, site: Site, key: &str, raw_value: RawValue) -> Self {
+        let raw = self.originals.entry(site)
+            .or_insert_with(HashMap::new);
+        raw.insert(key.to_owned(), raw_value);
         self
     }
 

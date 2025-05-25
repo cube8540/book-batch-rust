@@ -63,8 +63,10 @@ fn main() {
         },
         JobName::KYOBO => {
             let client = || kyobo::Client::new(kyobo::chrome::new_provider().unwrap());
+            let api = || kyobo::KyoboAPI::new();
             let job = batch::book::kyobo::create_job(
                 client,
+                api,
                 book_repository
             );
             job.run(&parameter).expect("Failed run job");
