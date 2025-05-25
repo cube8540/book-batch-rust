@@ -1,9 +1,8 @@
 pub mod chrome;
-mod utiles;
+mod utils;
 
 use crate::item::{Book, BookBuilder, Raw, Site};
 use crate::provider::html;
-use crate::provider::html::kyobo::utiles::{retrieve_author, retrieve_desc_img, retrieve_isbn, retrieve_item_id, retrieve_price, retrieve_prod_desc, retrieve_thumbnail, retrieve_title};
 use crate::provider::html::ParsingError;
 use reqwest::cookie::Jar;
 use reqwest::Url;
@@ -71,18 +70,18 @@ where
 }
 
 fn html_to_book(document: &Html) -> Result<BookBuilder, ParsingError> {
-    let item_id = retrieve_item_id(document)
+    let item_id = utils::retrieve_item_id(document)
         .ok_or_else(|| ParsingError::ItemNotFound)?;
-    let isbn = retrieve_isbn(document)
+    let isbn = utils::retrieve_isbn(document)
         .ok_or_else(|| ParsingError::ItemNotFound)?;
-    let title = retrieve_title(document)
+    let title = utils::retrieve_title(document)
         .ok_or_else(|| ParsingError::ElementNotFound("title is not found".to_owned()))?;
 
-    let thumbnail_url = retrieve_thumbnail(document);
-    let prod_img_url = retrieve_desc_img(document);
-    let prod_desc = retrieve_prod_desc(document);
-    let (sale_price, standard_price) = retrieve_price(document);
-    let author = retrieve_author(document);
+    let thumbnail_url = utils::retrieve_thumbnail(document);
+    let prod_img_url = utils::retrieve_desc_img(document);
+    let prod_desc = utils::retrieve_prod_desc(document);
+    let (sale_price, standard_price) = utils::retrieve_price(document);
+    let author = utils::retrieve_author(document);
 
     let mut origin_data = Raw::new();
     origin_data.insert("item_id".to_owned(), item_id.as_str().into());
