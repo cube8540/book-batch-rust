@@ -85,27 +85,27 @@ fn html_to_book(document: &Html) -> Result<BookBuilder, ParsingError> {
     let author = retrieve_author(document);
 
     let mut origin_data = Raw::new();
-    origin_data.insert("item_id".to_owned(), item_id.to_owned());
-    origin_data.insert("isbn".to_owned(), isbn.to_owned());
-    origin_data.insert("title".to_owned(), title.clone());
+    origin_data.insert("item_id".to_owned(), item_id.as_str().into());
+    origin_data.insert("isbn".to_owned(), isbn.as_str().into());
+    origin_data.insert("title".to_owned(), title.as_str().into());
     
-    if let Some(thumbnail_url) = thumbnail_url {
-        origin_data.insert("thumbnail_url".to_owned(), thumbnail_url);
+    if let Some(s) = thumbnail_url {
+        origin_data.insert("thumbnail_url".to_owned(), s.as_str().into());
     }
-    if let Some(prod_img_url) = prod_img_url {
-        origin_data.insert("prod_img_url".to_owned(), prod_img_url);
+    if let Some(s) = prod_img_url {
+        origin_data.insert("prod_img_url".to_owned(), s.as_str().into());
     }
-    if prod_desc.is_some() {
-        origin_data.insert("prod_description".to_owned(), prod_desc.unwrap());
+    if let Some(s) = prod_desc {
+        origin_data.insert("prod_description".to_owned(), s.as_str().into());
     }
-    if sale_price.is_some() {
-        origin_data.insert("sale_price".to_owned(), sale_price.unwrap().to_string());
+    if let Some(v) = sale_price {
+        origin_data.insert("sale_price".to_owned(), v.into());
     }
-    if standard_price.is_some() {
-        origin_data.insert("standard_price".to_owned(), standard_price.unwrap().to_string());
+    if let Some(v) = standard_price {
+        origin_data.insert("standard_price".to_owned(), v.into());
     }
-    if author.is_some() {
-        origin_data.insert("author".to_owned(), author.unwrap());
+    if let Some(s) = author {
+        origin_data.insert("author".to_owned(), s.as_str().into());
     }
 
     let builder = Book::builder()

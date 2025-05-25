@@ -6,6 +6,7 @@ use std::collections::HashMap;
 use std::fmt;
 use std::fmt::{Display, Formatter};
 use std::rc::Rc;
+use tracing::warn;
 
 /// Item 모듈에서 사용할 에러 열거
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -220,7 +221,183 @@ pub trait SeriesRepository {
     fn update_series(&self, series: &Series) -> usize;
 }
 
-pub type Raw = HashMap<String, String>;
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub enum RawValue {
+    Null,
+
+    Text(String),
+
+    Number(RawNumber),
+
+    Bool(bool),
+
+    Object(HashMap<String, RawValue>),
+
+    Array(Vec<RawValue>),
+}
+
+impl From<i32> for RawValue {
+    fn from(value: i32) -> Self {
+        Self::Number(RawNumber::SignedInt(value as i64))
+    }
+}
+
+impl From<i64> for RawValue {
+    fn from(value: i64) -> Self {
+        Self::Number(RawNumber::SignedInt(value))
+    }
+}
+
+impl From<u32> for RawValue {
+    fn from(value: u32) -> Self {
+        Self::Number(RawNumber::UnsignedInt(value as u64))
+    }
+}
+
+impl From<u64> for RawValue {
+    fn from(value: u64) -> Self {
+        Self::Number(RawNumber::UnsignedInt(value))
+    }
+}
+
+impl From<usize> for RawValue {
+    fn from(value: usize) -> Self {
+        Self::Number(RawNumber::UnsignedInt(value as u64))
+    }
+}
+
+impl From<&str> for RawValue {
+    fn from(value: &str) -> Self {
+        Self::Text(value.to_owned())
+    }
+}
+
+impl From<bool> for RawValue {
+    fn from(value: bool) -> Self {
+        Self::Bool(value)
+    }
+}
+
+impl From<serde_json::Value> for RawValue {
+
+    fn from(value: serde_json::Value) -> Self {
+        match value {
+            serde_json::Value::Null => Self::Null,
+            serde_json::Value::Bool(b) => Self::Bool(b),
+            serde_json::Value::Number(n) => {
+                if n.is_i64() {
+                    Self::Number(RawNumber::SignedInt(n.as_i64().unwrap()))
+                } else if n.is_u64() {
+                    Self::Number(RawNumber::UnsignedInt(n.as_u64().unwrap()))
+                } else if n.is_f64() {
+                    Self::Number(RawNumber::Float(n.as_f64().unwrap()))
+                } else {
+                    warn!("Unknown number type: {:?}", n);
+                    Self::Number(RawNumber::SignedInt(0))
+                }
+            }
+            serde_json::Value::String(s) => Self::from(s.as_str()),
+            serde_json::Value::Array(arr) => {
+                let arr = arr.iter()
+                    .map(|v| RawValue::from(v.clone()))
+                    .collect();
+                Self::Array(arr)
+            }
+            serde_json::Value::Object(o) => {
+                let mut obj = HashMap::new();
+                for (k, v) in o {
+                    obj.insert(k.to_owned(), RawValue::from(v.clone()));
+                }
+                Self::Object(obj)
+            }
+        }
+    }
+}
+
+impl RawValue {
+    fn to_serde_json(&self) -> serde_json::Value {
+        match self {
+            RawValue::Null => serde_json::Value::Null,
+            RawValue::Text(s) => serde_json::Value::String(s.clone()),
+            RawValue::Number(n) => {
+                match n {
+                    RawNumber::UnsignedInt(n) => serde_json::Value::Number(serde_json::Number::from(n.clone())),
+                    RawNumber::SignedInt(n) => serde_json::Value::Number(serde_json::Number::from(n.clone())),
+                    RawNumber::Float(n) => {
+                        let n = serde_json::Number::from_f64(n.clone());
+                        if n.is_some() {
+                            serde_json::Value::from(n.unwrap())
+                        } else {
+                            serde_json::Value::Number(serde_json::Number::from(0))
+                        }
+                    },
+                }
+            }
+            RawValue::Bool(b) => serde_json::Value::Bool(b.clone()),
+            RawValue::Object(o) => {
+                let mut map: serde_json::Map<String, serde_json::Value> = serde_json::Map::new();
+                for (k, v) in o {
+                    map.insert(k.clone(), v.to_serde_json());
+                }
+                serde_json::Value::Object(map)
+            }
+            RawValue::Array(arr) => {
+                let mut arr_value = Vec::new();
+                for v in arr {
+                    arr_value.push(v.to_serde_json());
+                }
+                serde_json::Value::Array(arr_value)
+            }
+        }
+    }
+}
+
+impl Display for RawValue {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            RawValue::Null => write!(f, "null"),
+            RawValue::Text(text) => write!(f, "{}", text),
+            RawValue::Number(number) => write!(f, "{}", number),
+            RawValue::Bool(bool) => write!(f, "{}", bool),
+            RawValue::Object(object) => write!(f, "{:?}", object),
+            RawValue::Array(array) => write!(f, "{:?}", array),
+        }
+    }
+}
+
+#[derive(Debug, Copy, Clone)]
+pub enum RawNumber {
+    UnsignedInt(u64),
+
+    SignedInt(i64),
+
+    Float(f64),
+}
+
+impl Display for RawNumber {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            RawNumber::UnsignedInt(n) => write!(f, "{:?}", n),
+            RawNumber::SignedInt(n) => write!(f, "{:?}", n),
+            RawNumber::Float(n) => write!(f, "{:?}", n),
+        }
+    }
+}
+
+impl PartialEq for RawNumber {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (RawNumber::UnsignedInt(a), RawNumber::UnsignedInt(b)) => a == b,
+            (RawNumber::SignedInt(a), RawNumber::SignedInt(b)) => a == b,
+            (RawNumber::Float(a), RawNumber::Float(b)) => a == b,
+            _ => false,
+        }
+    }
+}
+
+impl Eq for RawNumber {}
+
+pub type Raw = HashMap<String, RawValue>;
 
 /// 도서의 원본 데이터 타입
 /// 각 사이트에서 얻어온 실제 데이터를 저장 할 때 사용한다.
@@ -486,12 +663,12 @@ impl <T> Operand for T where T: Fn(&Raw) -> bool {
 /// # Example
 /// ```
 /// use std::collections::HashMap;
-/// use book_batch_rust::item::{Expression, Operand, Operator, Raw};
+/// use book_batch_rust::item::{Expression, Operand, Operator, Raw, RawNumber, RawValue};
 ///
-/// let raw: Raw = HashMap::from([("test_property".to_owned(), "1234".to_owned())]);
+/// let raw: Raw = HashMap::from([(String::from("test"), RawValue::from("test"))]);
 ///
-/// let operand1 = Box::new(|raw: &Raw| raw.get("test_property").is_some());
-/// let operand2 = Box::new(|raw: &Raw| raw.get("test_property").map(|v| v == "1234").unwrap_or(false));
+/// let operand1 = Box::new(|raw: &Raw| raw.get("test").is_some());
+/// let operand2 = Box::new(|raw: &Raw| raw.get("test").map(|v| v.eq(&RawValue::from("test"))).unwrap_or(false));
 ///
 /// let and_expression = Expression::new(Operator::AND, vec![operand1, operand2]);
 /// assert!(and_expression.test(&raw));
@@ -530,10 +707,10 @@ impl Operand for Expression {
 /// ```
 /// use std::collections::HashMap;
 /// use regex::Regex;
-/// use book_batch_rust::item::{FilterRule, Raw};
+/// use book_batch_rust::item::{FilterRule, Raw, RawValue};
 ///
-/// let raw: Raw = HashMap::from([("test_property".to_owned(), "1234".to_owned())]);
-/// let rule = FilterRule::new_operand("연산자 테스트", "test_property", Regex::new("[0-9]").unwrap());
+/// let raw: Raw = HashMap::from([(String::from("test"), RawValue::from("1234"))]);
+/// let rule = FilterRule::new_operand("연산자 테스트", "test", Regex::new("[0-9]").unwrap());
 /// let operand = rule.to_predicate();
 ///
 /// assert!(operand.test(&raw))
@@ -549,11 +726,11 @@ impl Operand for Expression {
 /// use std::collections::HashMap;
 /// use std::rc::Rc;
 /// use regex::Regex;
-/// use book_batch_rust::item::{FilterRule, Operator, Raw};
+/// use book_batch_rust::item::{FilterRule, Operator, Raw, RawValue};
 ///
 /// let raw: Raw = HashMap::from([
-///     ("first".to_owned(), "1234".to_owned()),
-///     ("second".to_owned(), "abcd".to_owned())
+///     (String::from("first"), RawValue::from("1234")),
+///     (String::from("second"), RawValue::from("abcd"))
 /// ]);
 ///
 /// let first_rule = FilterRule::new_operand("first rule", "first", Regex::new("[0-9]").unwrap());
@@ -632,7 +809,13 @@ impl FilterRule {
             let (property_name, regex) = (property_name.clone(), regex.clone());
             let operand = move |raw: &Raw| {
                 let value = raw.get(&property_name).unwrap();
-                regex.is_match(value)
+                match value {
+                    RawValue::Text(s) => regex.is_match(s),
+                    _ => {
+                        warn!("Text 타입 이외의 다른 타입은 정규표현식 검사를 할 수 없습니다. {}", value);
+                        false
+                    }
+                }
             };
             Box::new(operand)
         } else {

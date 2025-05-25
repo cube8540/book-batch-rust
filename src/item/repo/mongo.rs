@@ -69,7 +69,7 @@ impl BookOriginData {
     pub fn to_domain(&self) -> (Site, Raw) {
         let original = self.original.iter()
             .filter_map(|(k, v)| {
-                v.as_str().map(|v| (k.clone(), v.to_owned()))
+                v.as_str().map(|v| (k.clone(), v.into()))
             })
             .collect::<HashMap<_, _>>();
 
@@ -137,7 +137,7 @@ impl BookOriginDataStore {
             .map(|(site, raw)| {
                 let mut origin = BookOriginData::new(book_id, site.clone());
                 for (k, v) in raw {
-                    origin.add_origin(k, serde_json::Value::String(v.to_owned()));
+                    origin.add_origin(k, v.to_serde_json());
                 }
                 origin
             });

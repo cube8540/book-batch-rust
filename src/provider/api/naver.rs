@@ -1,9 +1,8 @@
-use crate::item::{Book, BookBuilder, Site};
+use crate::item::{Book, BookBuilder, Raw, Site};
 use crate::provider;
 use crate::provider::api::{ClientError, Request, Response};
 use serde::Deserialize;
 use serde_with::serde_as;
-use std::collections::HashMap;
 use std::env::VarError;
 
 const BOOK_SEARCH_ENDPOINT: &'static str = "https://openapi.naver.com/v1/search/book_adv.xml";
@@ -64,20 +63,20 @@ pub struct Item {
 }
 
 impl Item {
-    fn to_map(&self) -> HashMap<String, String> {
-        let mut map = HashMap::new();
+    fn to_original_raw(&self) -> Raw {
+        let mut map = Raw::new();
         
-        map.insert("title".to_string(), self.title.clone());
-        map.insert("link".to_string(), self.link.clone());
-        map.insert("image".to_string(), self.image.clone());
-        map.insert("author".to_string(), self.author.clone());
-        map.insert("publisher".to_string(), self.publisher.clone());
-        map.insert("pubdate".to_string(), self.pubdate.clone());
-        map.insert("isbn".to_string(), self.isbn.clone());
-        map.insert("description".to_string(), self.description.clone());
+        map.insert("title".to_string(), self.title.as_str().into());
+        map.insert("link".to_string(), self.link.as_str().into());
+        map.insert("image".to_string(), self.image.as_str().into());
+        map.insert("author".to_string(), self.author.as_str().into());
+        map.insert("publisher".to_string(), self.publisher.as_str().into());
+        map.insert("pubdate".to_string(), self.pubdate.as_str().into());
+        map.insert("isbn".to_string(), self.isbn.as_str().into());
+        map.insert("description".to_string(), self.description.as_str().into());
 
         if let Some(discount) = self.discount {
-            map.insert("discount".to_string(), discount.to_string());
+            map.insert("discount".to_string(), discount.into());
         }
         
         map
@@ -87,7 +86,7 @@ impl Item {
         let mut builder = Book::builder()
             .isbn(self.isbn.clone())
             .title(self.title.clone())
-            .add_original(Site::Naver, self.to_map());
+            .add_original(Site::Naver, self.to_original_raw());
 
         let actual_pub_date = if !self.pubdate.is_empty() {
             chrono::NaiveDate::parse_from_str(&self.pubdate, "%Y%m%d").ok()

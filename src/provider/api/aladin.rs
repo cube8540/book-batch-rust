@@ -1,10 +1,9 @@
-use crate::item::{BookBuilder, Site};
+use crate::item::{BookBuilder, Raw, Site};
 use crate::provider;
 use crate::provider::api::{ClientError, Request};
 use chrono::NaiveDate;
 use reqwest::{blocking, Url};
 use serde::Deserialize;
-use std::collections::HashMap;
 use std::env;
 use std::env::VarError;
 
@@ -96,22 +95,22 @@ pub struct BookItem {
 }
 
 impl BookItem {
-    fn to_map(&self) -> HashMap<String, String> {
-        let mut map = HashMap::new();
+    fn to_original_raw(&self) -> Raw {
+        let mut map = Raw::new();
 
-        map.insert("title".to_string(), self.title.clone());
-        map.insert("link".to_string(), self.link.clone());
-        map.insert("author".to_string(), self.author.clone());
-        map.insert("pubDate".to_string(), self.pub_date.clone());
-        map.insert("description".to_string(), self.description.clone());
-        map.insert("isbn".to_string(), self.isbn.clone());
-        map.insert("isbn13".to_string(), self.isbn13.clone());
-        map.insert("itemId".to_string(), self.item_id.to_string());
-        map.insert("priceSales".to_string(), self.price_sales.to_string());
-        map.insert("priceStandard".to_string(), self.price_standard.to_string());
-        map.insert("publisher".to_string(), self.publisher.clone());
-        map.insert("categoryId".to_string(), self.category_id.to_string());
-        map.insert("stockStatus".to_string(), self.stock_status.clone());
+        map.insert("title".to_string(), self.title.as_str().into());
+        map.insert("link".to_string(), self.link.as_str().into());
+        map.insert("author".to_string(), self.author.as_str().into());
+        map.insert("pubDate".to_string(), self.pub_date.as_str().into());
+        map.insert("description".to_string(), self.description.as_str().into());
+        map.insert("isbn".to_string(), self.isbn.as_str().into());
+        map.insert("isbn13".to_string(), self.isbn13.as_str().into());
+        map.insert("itemId".to_string(), self.item_id.into());
+        map.insert("priceSales".to_string(), self.price_sales.into());
+        map.insert("priceStandard".to_string(), self.price_standard.into());
+        map.insert("publisher".to_string(), self.publisher.as_str().into());
+        map.insert("categoryId".to_string(), self.category_id.into());
+        map.insert("stockStatus".to_string(), self.stock_status.as_str().into());
 
         map
     }
@@ -120,7 +119,7 @@ impl BookItem {
         let mut builder = BookBuilder::new()
             .isbn(self.isbn13.clone())
             .title(self.title.clone())
-            .add_original(Site::Aladin, self.to_map());
+            .add_original(Site::Aladin, self.to_original_raw());
         let actual_pub_date = NaiveDate::parse_from_str(self.pub_date.as_str(), "%Y-%m-%d").ok();
         if let Some(date) = actual_pub_date {
             builder = builder.actual_pub_date(date);

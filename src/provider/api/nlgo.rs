@@ -1,9 +1,8 @@
-use crate::item::{Book, BookBuilder, Site};
+use crate::item::{Book, BookBuilder, Raw, Site};
 use crate::provider;
 use crate::provider::api::{ClientError, Request};
 use serde::Deserialize;
 use serde_with::serde_as;
-use std::collections::HashMap;
 use std::env;
 use std::env::VarError;
 
@@ -60,23 +59,23 @@ pub struct Doc {
 }
 
 impl Doc {
-    fn to_map(&self) -> HashMap<String, String> {
-        let mut map = HashMap::new();
+    fn to_original_raw(&self) -> Raw {
+        let mut map = Raw::new();
 
-        map.insert("title".to_string(), self.title.clone());
-        map.insert("ea_isbn".to_string(), self.ea_isbn.clone());
-        map.insert("set_isbn".to_string(), self.set_isbn.clone());
-        map.insert("ea_add_code".to_string(), self.ea_add_code.clone());
-        map.insert("set_add_code".to_string(), self.set_add_code.clone());
-        map.insert("series_no".to_string(), self.series_no.clone());
-        map.insert("set_expression".to_string(), self.set_expression.clone());
-        map.insert("subject".to_string(), self.subject.clone());
-        map.insert("publisher".to_string(), self.publisher.clone());
-        map.insert("author".to_string(), self.author.clone());
-        map.insert("real_publish_date".to_string(), self.real_publish_date.clone());
-        map.insert("publish_predate".to_string(), self.publish_predate.clone());
-        map.insert("update_date".to_string(), self.update_date.clone());
-        map.insert("pre_price".to_string(), self.price.clone());
+        map.insert("title".to_string(), self.title.as_str().into());
+        map.insert("ea_isbn".to_string(), self.ea_isbn.as_str().into());
+        map.insert("set_isbn".to_string(), self.set_isbn.as_str().into());
+        map.insert("ea_add_code".to_string(), self.ea_add_code.as_str().into());
+        map.insert("set_add_code".to_string(), self.set_add_code.as_str().into());
+        map.insert("series_no".to_string(), self.series_no.as_str().into());
+        map.insert("set_expression".to_string(), self.set_expression.as_str().into());
+        map.insert("subject".to_string(), self.subject.as_str().into());
+        map.insert("publisher".to_string(), self.publisher.as_str().into());
+        map.insert("author".to_string(), self.author.as_str().into());
+        map.insert("real_publish_date".to_string(), self.real_publish_date.as_str().into());
+        map.insert("publish_predate".to_string(), self.publish_predate.as_str().into());
+        map.insert("update_date".to_string(), self.update_date.as_str().into());
+        map.insert("pre_price".to_string(), self.price.as_str().into());
 
         map
     }
@@ -85,7 +84,7 @@ impl Doc {
         let mut builder = Book::builder()
             .isbn(self.ea_isbn.clone())
             .title(self.title.clone())
-            .add_original(Site::NLGO, self.to_map());
+            .add_original(Site::NLGO, self.to_original_raw());
 
         if self.publish_predate != "" {
             if let Ok(spd) = chrono::NaiveDate::parse_from_str(&self.publish_predate, "%Y%m%d") {
