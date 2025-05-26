@@ -1,17 +1,16 @@
 pub mod chrome;
 mod utils;
 
-use std::collections::HashMap;
 use crate::item::{Book, BookBuilder, Raw, RawValue, Site};
 use crate::provider::html;
 use crate::provider::html::ParsingError;
 use reqwest::cookie::Jar;
 use reqwest::Url;
 use scraper::Html;
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
-use tracing::error;
 
 const AGENT: &'static str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.149 Safari/537.36";
 
