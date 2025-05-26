@@ -1,38 +1,40 @@
-use crate::batch::book::{create_default_filter_chain, retrieve_from_to_in_parameter, ByPublisher, FilterChain, OnlyNewBooksWriter, OriginalDataFilter};
+use crate::batch::book::{create_default_filter_chain, retrieve_from_to_in_parameter, ByPublisher, OnlyNewBooksWriter, OriginalDataFilter};
 use crate::batch::error::JobReadFailed;
-use crate::batch::{Job, JobParameter, PhantomProcessor, Provider, Reader};
-use crate::item::{Book, BookBuilder, BookRepository, FilterRepository, PublisherRepository, Site};
+use crate::batch::{Job, JobParameter, PhantomProcessor, Reader};
+use crate::item::{Book, BookBuilder, SharedBookRepository, SharedFilterRepository, SharedPublisherRepository, Site};
 use crate::provider;
 use crate::provider::api::{nlgo, Client};
+use std::rc::Rc;
 
 const PAGE_SIZE: usize = 500;
 
-pub struct NlgoBookReader<PubRepo: PublisherRepository> {
-    client: nlgo::Client,
-    publisher_repository: PubRepo,
+pub struct NlgoBookReader {
+    client: Rc<nlgo::Client>,
+    pub_repo: SharedPublisherRepository,
 }
 
-impl<PubRepo: PublisherRepository> NlgoBookReader<PubRepo> {
-    pub fn new(client: nlgo::Client, repo: PubRepo) -> Self {
-        Self { client, publisher_repository: repo }
+impl NlgoBookReader {
+    pub fn new(client: Rc<nlgo::Client>, pub_repo: SharedPublisherRepository) -> Self {
+        Self { client, pub_repo }
     }
 }
 
-impl<PubRepo: PublisherRepository> Reader for NlgoBookReader<PubRepo> {
+impl Reader for NlgoBookReader {
     type Item = Book;
 
     fn do_read(&self, params: &JobParameter) -> Result<Vec<Self::Item>, JobReadFailed> {
-        <Self as ByPublisher<PubRepo>>::read_books(self, params)
+        <Self as ByPublisher>::read_books(self, params)
     }
 }
 
-impl<PubRepo: PublisherRepository> ByPublisher<PubRepo> for NlgoBookReader<PubRepo> {
+impl ByPublisher for NlgoBookReader {
+
     fn site(&self) -> &Site {
         &Site::NLGO
     }
 
-    fn repository(&self) -> &PubRepo {
-        &self.publisher_repository
+    fn repository(&self) -> &SharedPublisherRepository {
+        &self.pub_repo
     }
 
     fn by_publisher_keyword(&self, keyword: &str, params: &JobParameter) -> Result<Vec<BookBuilder>, JobReadFailed> {
@@ -58,25 +60,20 @@ impl<PubRepo: PublisherRepository> ByPublisher<PubRepo> for NlgoBookReader<PubRe
     }
 }
 
-pub fn create_job<PR, BR, FR>(
-    client: impl Provider<Item=nlgo::Client>,
-    publisher_repo: impl Provider<Item=PR>,
-    book_repo: impl Provider<Item=BR>,
-    filter_repo: impl Provider<Item=FR>,
-) -> Job<Book, Book, NlgoBookReader<PR>, FilterChain, PhantomProcessor<Book>, OnlyNewBooksWriter<BR>>
-where
-    PR: PublisherRepository + 'static,
-    BR: BookRepository + 'static,
-    FR: FilterRepository + 'static,
-{
+pub fn create_job(
+    client: Rc<nlgo::Client>,
+    pub_repo: SharedPublisherRepository,
+    book_repo: SharedBookRepository,
+    filter_repo: SharedFilterRepository,
+) -> Job<Book, Book> {
     let filter_chain = create_default_filter_chain()
-        .add_filter(Box::new(OriginalDataFilter::new(filter_repo.retrieve(), Site::NLGO)));
+        .add_filter(Box::new(OriginalDataFilter::new(filter_repo.clone(), Site::NLGO)));
 
     Job::builder()
-        .reader(NlgoBookReader::new(client.retrieve(), publisher_repo.retrieve()))
+        .reader(NlgoBookReader::new(client.clone(), pub_repo.clone()))
         .filter(filter_chain)
         .processor(PhantomProcessor::new())
-        .writer(OnlyNewBooksWriter::new(book_repo.retrieve()))
+        .writer(OnlyNewBooksWriter::new(book_repo.clone()))
         .build()
         .unwrap()
 }

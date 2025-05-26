@@ -3,6 +3,7 @@ pub mod book;
 
 use crate::batch::error::{JobBuildError, JobProcessFailed, JobReadFailed, JobRuntimeError, JobWriteFailed};
 use std::collections::HashMap;
+use tracing_subscriber::fmt::writer;
 
 pub type JobParameter = HashMap<String, String>;
 
@@ -157,95 +158,18 @@ impl<I> Processor for PhantomProcessor<I> {
 pub trait Writer {
     type Item;
 
-    fn do_write<I>(&self, items: Vec<Self::Item>) -> Result<(), JobWriteFailed<Self::Item>>;
+    fn do_write(&self, items: Vec<Self::Item>) -> Result<(), JobWriteFailed<Self::Item>>;
 }
 
-pub struct JobBuilder<I, O, R, F, P, W>
-where
-    R: Reader<Item = I>,
-    F: Filter<Item = I>,
-    P: Processor<In = I, Out = O>,
-    W: Writer<Item = O>,
-{
-    reader: Option<R>,
-    filter: Option<F>,
-    processor: Option<P>,
-    writer: Option<W>,
-    _phantom: std::marker::PhantomData<(I, O)>,
+pub struct Job<I, O> {
+    reader: Box<dyn Reader<Item = I>>,
+    filter: Option<Box<dyn Filter<Item = I>>>,
+    processor: Box<dyn Processor<In = I, Out = O>>,
+    writer: Box<dyn Writer<Item = O>>,
 }
 
-impl<I, O, R, F, P, W> JobBuilder<I, O, R, F, P, W>
-where
-    R: Reader<Item = I>,
-    F: Filter<Item = I>,
-    P: Processor<In = I, Out = O>,
-    W: Writer<Item = O>,
-{
-    pub fn new() -> Self {
-        JobBuilder {
-            reader: None,
-            filter: None,
-            processor: None,
-            writer: None,
-            _phantom: std::marker::PhantomData,
-        }
-    }
-
-    pub fn reader(mut self, reader: R) -> Self {
-        self.reader = Some(reader);
-        self
-    }
-
-    pub fn filter(mut self, filter: F) -> Self {
-        self.filter = Some(filter);
-        self
-    }
-
-    pub fn processor(mut self, processor: P) -> Self {
-        self.processor = Some(processor);
-        self
-    }
-
-    pub fn writer(mut self, writer: W) -> Self {
-        self.writer = Some(writer);
-        self
-    }
-
-    pub fn build(self) -> Result<Job<I, O, R, F, P, W>, JobBuildError> {
-        let reader = self.reader.ok_or_else(|| JobBuildError::MissingRequireParameter("Reader".to_string()))?;
-        let processor = self.processor.ok_or_else(|| JobBuildError::MissingRequireParameter("Processor".to_string()))?;
-        let writer = self.writer.ok_or_else(|| JobBuildError::MissingRequireParameter("Writer".to_string()))?;
-
-        Ok(Job {
-            reader,
-            filter: self.filter,
-            processor,
-            writer,
-        })
-    }
-}
-
-pub struct Job<I, O, R, F, P, W>
-where
-    R: Reader<Item = I>,
-    F: Filter<Item = I>,
-    P: Processor<In = I, Out = O>,
-    W: Writer<Item = O>,
-{
-    reader: R,
-    filter: Option<F>,
-    processor: P,
-    writer: W,
-}
-
-impl<I, O, R, F, P, W> Job<I, O, R, F, P, W>
-where
-    R: Reader<Item = I>,
-    F: Filter<Item = I>,
-    P: Processor<In = I, Out = O>,
-    W: Writer<Item = O>,
-{
-    pub fn builder() -> JobBuilder<I, O, R, F, P, W> {
+impl<I, O> Job<I, O>  {
+    pub fn builder() -> JobBuilder<I, O> {
         JobBuilder::new()
     }
 
@@ -266,9 +190,69 @@ where
             targets.push(target);
         }
 
-        self.writer.do_write::<Vec<O>>(targets)
-            .map_err(|e| JobRuntimeError::WriteFailed(e))?;
+        self.writer.do_write(targets).map_err(|e| JobRuntimeError::WriteFailed(e))?;
 
         Ok(())
+    }
+}
+pub struct JobBuilder<I, O> {
+    reader: Option<Box<dyn Reader<Item = I>>>,
+    filter: Option<Box<dyn Filter<Item = I>>>,
+    processor: Option<Box<dyn Processor<In = I, Out = O>>>,
+    writer: Option<Box<dyn Writer<Item = O>>>,
+}
+
+impl<I, O> JobBuilder<I, O> {
+    pub fn new() -> Self {
+        Self {
+            reader: None,
+            filter: None,
+            processor: None,
+            writer: None,
+        }
+    }
+
+    pub fn reader<R>(mut self, reader: R) -> Self 
+    where 
+        R: Reader<Item = I> + 'static 
+    {
+        self.reader = Some(Box::new(reader));
+        self
+    }
+
+    pub fn filter<F>(mut self, filter: F) -> Self 
+    where 
+        F: Filter<Item = I> + 'static 
+    {
+        self.filter = Some(Box::new(filter));
+        self
+    }
+
+    pub fn processor<P>(mut self, processor: P) -> Self 
+    where 
+        P: Processor<In = I, Out = O> + 'static 
+    {
+        self.processor = Some(Box::new(processor));
+        self
+    }
+
+    pub fn writer<W>(mut self, writer: W) -> Self 
+    where 
+        W: Writer<Item = O> + 'static 
+    {
+        self.writer = Some(Box::new(writer));
+        self
+    }
+
+    pub fn build(self) -> Result<Job<I, O>, JobBuildError> {
+        Ok(Job {
+            reader: self.reader.ok_or_else(|| 
+                JobBuildError::MissingRequireParameter("Reader".to_string()))?,
+            filter: self.filter,
+            processor: self.processor.ok_or_else(|| 
+                JobBuildError::MissingRequireParameter("Processor".to_string()))?,
+            writer: self.writer.ok_or_else(|| 
+                JobBuildError::MissingRequireParameter("Writer".to_string()))?,
+        })
     }
 }

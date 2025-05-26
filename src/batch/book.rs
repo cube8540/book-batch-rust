@@ -5,7 +5,7 @@ pub mod kyobo;
 
 use crate::batch::error::{JobReadFailed, JobWriteFailed};
 use crate::batch::{Filter, JobParameter, Reader, Writer};
-use crate::item::{Book, BookBuilder, BookRepository, FilterRepository, Publisher, PublisherRepository, Site};
+use crate::item::{Book, BookBuilder, Publisher, SharedBookRepository, SharedFilterRepository, SharedPublisherRepository, Site};
 use chrono::NaiveDate;
 use std::collections::{HashMap, HashSet};
 
@@ -91,11 +91,11 @@ pub fn retrieve_publisher_id_in_parameter(params: &JobParameter) -> Result<Vec<u
     }
 }
 
-pub trait ByPublisher<Repo: PublisherRepository>: Reader<Item=Book> {
+pub trait ByPublisher: Reader<Item=Book> {
 
     fn site(&self) -> &Site;
 
-    fn repository(&self) -> &Repo;
+    fn repository(&self) -> &SharedPublisherRepository;
 
     fn by_publisher_keyword(&self, keyword: &str, params: &JobParameter) -> Result<Vec<BookBuilder>, JobReadFailed>;
 
@@ -170,13 +170,13 @@ impl Filter for DropDuplicateIsbnFilter {
     }
 }
 
-pub struct OriginalDataFilter<R: FilterRepository> {
-    repository: R,
+pub struct OriginalDataFilter {
+    repository: SharedFilterRepository,
     site: Site
 }
 
-impl<R: FilterRepository> OriginalDataFilter<R> {
-    pub fn new(repository: R, site: Site) -> OriginalDataFilter<R> {
+impl OriginalDataFilter {
+    pub fn new(repository: SharedFilterRepository, site: Site) -> OriginalDataFilter {
         OriginalDataFilter {
             repository,
             site
@@ -184,7 +184,7 @@ impl<R: FilterRepository> OriginalDataFilter<R> {
     }
 }
 
-impl <R: FilterRepository> Filter for OriginalDataFilter<R> {
+impl Filter for OriginalDataFilter {
     type Item = Book;
 
     fn do_filter(&self, items: Vec<Self::Item>) -> Vec<Self::Item> {
@@ -237,32 +237,29 @@ pub fn create_default_filter_chain() -> FilterChain {
         .add_filter(Box::new(new_drop_duplicate_isbn_filter()))
 }
 
-pub struct OnlyNewBooksWriter<Repo: BookRepository> {
-    repository: Repo,
+pub struct OnlyNewBooksWriter {
+    repo: SharedBookRepository,
     chunk_size: usize,
 }
 
-impl<Repo: BookRepository> OnlyNewBooksWriter<Repo> {
-    pub fn new(repository: Repo) -> OnlyNewBooksWriter<Repo> {
-        OnlyNewBooksWriter {
-            repository,
-            chunk_size: 100
-        }
+impl OnlyNewBooksWriter {
+    pub fn new(repo: SharedBookRepository) -> Self {
+        Self::new_with_chunk_size(repo, 100)
     }
 
-    pub fn new_with_chunk_size(repository: Repo, chunk_size: usize) -> OnlyNewBooksWriter<Repo> {
-        OnlyNewBooksWriter {
-            repository,
+    pub fn new_with_chunk_size(repo: SharedBookRepository, chunk_size: usize) -> Self {
+        Self {
+            repo,
             chunk_size
         }
     }
 }
 
-impl<Repo: BookRepository> Writer for OnlyNewBooksWriter<Repo> {
+impl Writer for OnlyNewBooksWriter {
     type Item = Book;
 
-    fn do_write<I>(&self, items: Vec<Self::Item>) -> Result<(), JobWriteFailed<Self::Item>> {
-        let exists_in_db = retrieve_exists_book_in_db(&self.repository, &items);
+    fn do_write(&self, items: Vec<Self::Item>) -> Result<(), JobWriteFailed<Self::Item>> {
+        let exists_in_db = retrieve_exists_book_in_db(&self.repo, &items);
 
         let new_books = items.into_iter()
             .filter(|b| !exists_in_db.contains_key(b.isbn()))
@@ -270,7 +267,7 @@ impl<Repo: BookRepository> Writer for OnlyNewBooksWriter<Repo> {
 
         let chunks = new_books.chunks(self.chunk_size);
         for chunk in chunks {
-            let wrote = self.repository.save_books(chunk);
+            let wrote = self.repo.save_books(chunk);
             if wrote.is_empty() {
                 return Err(JobWriteFailed::new(new_books, "No new books to write"))
             }
@@ -279,32 +276,29 @@ impl<Repo: BookRepository> Writer for OnlyNewBooksWriter<Repo> {
     }
 }
 
-pub struct UpsertBookWriter<Repo: BookRepository> {
-    repository: Repo,
+pub struct UpsertBookWriter {
+    repo: SharedBookRepository,
     chunk_size: usize,
 }
 
-impl<Repo: BookRepository> UpsertBookWriter<Repo> {
-    pub fn new(repository: Repo) -> UpsertBookWriter<Repo> {
-        UpsertBookWriter {
-            repository,
-            chunk_size: 100
-        }
+impl UpsertBookWriter {
+    pub fn new(repo: SharedBookRepository) -> Self {
+        Self::new_with_chunk_size(repo, 100)
     }
 
-    pub fn new_with_chunk_size(repository: Repo, chunk_size: usize) -> UpsertBookWriter<Repo> {
-        UpsertBookWriter {
-            repository,
+    pub fn new_with_chunk_size(repo: SharedBookRepository, chunk_size: usize) -> Self {
+        Self {
+            repo,
             chunk_size
         }
     }
 }
 
-impl<Repo: BookRepository> Writer for UpsertBookWriter<Repo> {
+impl Writer for UpsertBookWriter {
     type Item = Book;
 
-    fn do_write<I>(&self, items: Vec<Self::Item>) -> Result<(), JobWriteFailed<Self::Item>> {
-        let exists_in_db = retrieve_exists_book_in_db(&self.repository, &items);
+    fn do_write(&self, items: Vec<Self::Item>) -> Result<(), JobWriteFailed<Self::Item>> {
+        let exists_in_db = retrieve_exists_book_in_db(&self.repo, &items);
 
         let mut new_books = Vec::new();
         for book in items {
@@ -313,7 +307,7 @@ impl<Repo: BookRepository> Writer for UpsertBookWriter<Repo> {
             } else {
                 let db_book = exists_in_db.get(book.isbn()).unwrap();
                 let merged_book = db_book.merge(&book);
-                let updated_count = self.repository.update_book(&merged_book);
+                let updated_count = self.repo.update_book(&merged_book);
                 if updated_count <= 0 {
                     return Err(JobWriteFailed::new(vec![merged_book], "Failed to update book"));
                 }
@@ -322,7 +316,7 @@ impl<Repo: BookRepository> Writer for UpsertBookWriter<Repo> {
 
         let chunks = new_books.chunks(self.chunk_size);
         for chunk in chunks {
-            let wrote = self.repository.save_books(chunk);
+            let wrote = self.repo.save_books(chunk);
             if wrote.is_empty() {
                 return Err(JobWriteFailed::new(new_books, "No new books to write"))
             }
@@ -332,7 +326,7 @@ impl<Repo: BookRepository> Writer for UpsertBookWriter<Repo> {
     }
 }
 
-fn retrieve_exists_book_in_db<Repo: BookRepository, T: AsRef<Book>>(repo: &Repo, books: &[T]) -> HashMap<String, Book> {
+fn retrieve_exists_book_in_db(repo: &SharedBookRepository, books: &[Book]) -> HashMap<String, Book> {
     let books_isbn = books.iter().map(|b| b.as_ref().isbn()).collect::<Vec<_>>();
     repo.find_by_isbn(&books_isbn).into_iter()
         .map(|b| (b.isbn().to_owned(), b))

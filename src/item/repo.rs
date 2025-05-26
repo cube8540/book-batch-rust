@@ -91,7 +91,7 @@ impl BookRepository for ComposeBookRepository {
             .collect()
     }
 
-    fn save_books<T: AsRef<Book>>(&self, books: &[T]) -> Vec<Book> {
+    fn save_books(&self, books: &[Book]) -> Vec<Book> {
         let mut isbn_with_origin = books.iter()
             .map(|b| {
                 let book = b.as_ref();

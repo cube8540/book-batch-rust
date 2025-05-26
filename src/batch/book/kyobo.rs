@@ -1,33 +1,31 @@
 use crate::batch::book::{retrieve_from_to_in_parameter, UpsertBookWriter};
 use crate::batch::error::{JobProcessFailed, JobReadFailed};
-use crate::batch::{Job, JobParameter, PhantomFilter, Processor, Provider, Reader};
-use crate::item::{Book, BookRepository, RawValue, Site};
+use crate::batch::{Job, JobParameter, PhantomFilter, Processor, Reader};
+use crate::item::{Book, RawValue, SharedBookRepository, Site};
 use crate::provider::html::{kyobo, Client, ParsingError};
+use std::rc::Rc;
 use tracing::error;
 
-pub struct KyoboReader<LP, BookRepo>
+pub struct KyoboReader<LP>
 where
     LP: kyobo::LoginProvider,
-    BookRepo: BookRepository
 {
-    client: kyobo::Client<LP>,
-    book_repository: BookRepo,
+    client: Rc<kyobo::Client<LP>>,
+    book_repo: SharedBookRepository,
 }
 
-impl<LP, BookRepo> KyoboReader<LP, BookRepo>
+impl<LP> KyoboReader<LP>
 where
     LP: kyobo::LoginProvider,
-    BookRepo: BookRepository
 {
-    pub fn new(client: kyobo::Client<LP>, book_repository: BookRepo) -> Self {
-        Self { client, book_repository }
+    pub fn new(client: Rc<kyobo::Client<LP>>, book_repo: SharedBookRepository) -> Self {
+        Self { client, book_repo }
     }
 }
 
-impl<LP, BookRepo> Reader for KyoboReader<LP, BookRepo>
+impl<LP> Reader for KyoboReader<LP>
 where
     LP: kyobo::LoginProvider,
-    BookRepo: BookRepository
 {
     type Item = Book;
 
@@ -35,7 +33,7 @@ where
         let (from, to) = retrieve_from_to_in_parameter(params)?;
 
         let mut result = Vec::new();
-        for book in self.book_repository.find_by_pub_between(&from, &to) {
+        for book in self.book_repo.find_by_pub_between(&from, &to) {
             let response = self.client.get(book.isbn());
             if response.is_ok() {
                 let builder = response.unwrap();
@@ -58,11 +56,11 @@ where
 }
 
 pub struct KyoboAddSeriesOriginal {
-    api: kyobo::KyoboAPI
+    api: Rc<kyobo::KyoboAPI>
 }
 
 impl KyoboAddSeriesOriginal {
-    pub fn new(api: kyobo::KyoboAPI) -> Self {
+    pub fn new(api: Rc<kyobo::KyoboAPI>) -> Self {
         Self { api }
     }
 }
@@ -103,19 +101,19 @@ impl Processor for KyoboAddSeriesOriginal {
     }
 }
 
-pub fn create_job<LP, BR>(
-    client: impl Provider<Item=kyobo::Client<LP>>,
-    api: impl Provider<Item=kyobo::KyoboAPI>,
-    book_repo: impl Provider<Item=BR>,
-) -> Job<Book, Book, KyoboReader<LP, BR>, PhantomFilter<Book>, KyoboAddSeriesOriginal, UpsertBookWriter<BR>>
+pub fn create_job<LP>(
+    client: Rc<kyobo::Client<LP>>,
+    api: Rc<kyobo::KyoboAPI>,
+    book_repo: SharedBookRepository,
+) -> Job<Book, Book>
 where
-    LP: kyobo::LoginProvider,
-    BR: BookRepository + 'static {
+    LP: kyobo::LoginProvider + 'static,
+{
     Job::builder()
-        .reader(KyoboReader::new(client.retrieve(), book_repo.retrieve()))
+        .reader(KyoboReader::new(client.clone(), book_repo.clone()))
         .filter(PhantomFilter::new())
-        .processor(KyoboAddSeriesOriginal::new(api.retrieve()))
-        .writer(UpsertBookWriter::new(book_repo.retrieve()))
+        .processor(KyoboAddSeriesOriginal::new(api.clone()))
+        .writer(UpsertBookWriter::new(book_repo.clone()))
         .build()
         .unwrap()
 }

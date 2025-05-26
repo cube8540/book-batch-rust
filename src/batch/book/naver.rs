@@ -1,27 +1,28 @@
 use crate::batch::book::{retrieve_from_to_in_parameter, UpsertBookWriter};
 use crate::batch::error::JobReadFailed;
-use crate::batch::{Job, JobParameter, PhantomFilter, PhantomProcessor, Provider, Reader};
-use crate::item::{Book, BookRepository};
+use crate::batch::{Job, JobParameter, PhantomFilter, PhantomProcessor, Reader};
+use crate::item::{Book, SharedBookRepository};
 use crate::provider;
 use crate::provider::api::{naver, Client};
+use std::rc::Rc;
 
-pub struct NaverReader<BookRepo: BookRepository> {
-    client: naver::Client,
-    book_repository: BookRepo
+pub struct NaverReader {
+    client: Rc<naver::Client>,
+    book_repo: SharedBookRepository
 }
 
-impl<BookRepo: BookRepository> NaverReader<BookRepo> {
-    pub fn new(client: naver::Client, book_repository: BookRepo) -> Self {
-        Self { client, book_repository }
+impl NaverReader {
+    pub fn new(client: Rc<naver::Client>, book_repo: SharedBookRepository) -> Self {
+        Self { client, book_repo }
     }
 }
 
-impl<BookRepo: BookRepository> Reader for NaverReader<BookRepo> {
+impl Reader for NaverReader {
     type Item = Book;
 
     fn do_read(&self, params: &JobParameter) -> Result<Vec<Self::Item>, JobReadFailed> {
         let (from, to) = retrieve_from_to_in_parameter(params)?;
-        let results = self.book_repository.find_by_pub_between(&from, &to).into_iter()
+        let results = self.book_repo.find_by_pub_between(&from, &to).into_iter()
             .flat_map(|book| {
                 let request = provider::api::Request::builder()
                     .query(book.isbn().to_owned())
@@ -36,18 +37,15 @@ impl<BookRepo: BookRepository> Reader for NaverReader<BookRepo> {
     }
 }
 
-pub fn create_job<BR>(
-    client: impl Provider<Item=naver::Client>,
-    book_repo: impl Provider<Item=BR>,
-) -> Job<Book, Book, NaverReader<BR>, PhantomFilter<Book>, PhantomProcessor<Book>, UpsertBookWriter<BR>>
-where
-    BR: BookRepository + 'static,
-{
+pub fn create_job(
+    client: Rc<naver::Client>,
+    book_repo: SharedBookRepository,
+) -> Job<Book, Book> {
     Job::builder()
-        .reader(NaverReader::new(client.retrieve(), book_repo.retrieve()))
+        .reader(NaverReader::new(client.clone(), book_repo.clone()))
         .filter(PhantomFilter::new())
         .processor(PhantomProcessor::new())
-        .writer(UpsertBookWriter::new(book_repo.retrieve()))
+        .writer(UpsertBookWriter::new(book_repo.clone()))
         .build()
         .unwrap()
 }

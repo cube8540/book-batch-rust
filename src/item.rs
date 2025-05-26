@@ -94,6 +94,8 @@ impl Publisher {
     }
 }
 
+pub type SharedPublisherRepository = Rc<Box<dyn PublisherRepository>>;
+
 /// 출판사 저장소
 pub trait PublisherRepository {
 
@@ -505,6 +507,8 @@ impl BookBuilder {
     }
 }
 
+pub type SharedBookRepository = Rc<Box<dyn BookRepository>>;
+
 /// 도서 저장소
 pub trait BookRepository {
 
@@ -515,7 +519,7 @@ pub trait BookRepository {
     fn find_by_isbn(&self, isbn: &[&str]) -> Vec<Book>;
 
     /// 전달 받은 도서를 모두 저장소에 저장한다.
-    fn save_books<T: AsRef<Book>>(&self, books: &[T]) -> Vec<Book>;
+    fn save_books(&self, books: &[Book]) -> Vec<Book>;
 
     /// 전달 받은 도서 정보로 저장소의 도서를 업데이트 한다.
     fn update_book(&self, book: &Book) -> usize;
@@ -724,6 +728,8 @@ impl FilterRule {
         }
     }
 }
+
+pub type SharedFilterRepository = Rc<Box<dyn FilterRepository>>;
 
 /// 필터 저장소
 pub trait FilterRepository {
