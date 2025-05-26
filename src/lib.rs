@@ -1,12 +1,13 @@
 use std::fmt;
 use std::fmt::Formatter;
+use clap::Parser;
 
 pub mod configs;
 pub mod provider;
 pub mod item;
 pub mod batch;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq, Clone, Hash)]
 pub enum ArgumentError {
     InvalidArgument(String),
     InvalidCredentials(String),
@@ -18,6 +19,7 @@ impl fmt::Display for ArgumentError {
     }
 }
 
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
 pub enum JobName {
     ALADIN,
     NAVER,
@@ -25,64 +27,67 @@ pub enum JobName {
     KYOBO
 }
 
-impl JobName {
-    pub fn from_str(s: &str) -> Result<Self, ArgumentError> {
-        match s {
-            "aladin" => Ok(JobName::ALADIN),
-            "naver" => Ok(JobName::NAVER),
-            "nlgo" => Ok(JobName::NLGO),
-            "kyobo" => Ok(JobName::KYOBO),
-            _ => Err(ArgumentError::InvalidArgument(format!("Invalid job name: {}", s))),
+impl From<&str> for JobName {
+    fn from(s: &str) -> Self {
+        match s.to_lowercase().as_str() {
+            "aladin" => JobName::ALADIN,
+            "naver" => JobName::NAVER,
+            "nlgo" => JobName::NLGO,
+            "kyobo" => JobName::KYOBO,
+            _ => panic!("Invalid job name: {}", s),
         }
     }
 }
 
+#[derive(Debug, Parser)]
 pub struct Argument {
-    pub job: JobName,
-    pub from: Option<chrono::NaiveDate>,
-    pub to: Option<chrono::NaiveDate>,
+
+    /// 실행 하려는 배치잡 이름
+    ///
+    /// # 배치잡 리스트
+    /// - `NLGO`: 국립중앙도서관 API를 이용한 도서 데이터 수집
+    /// - `NAVER`: 네이버 도서 API를 이용한 도서 데이터 수집
+    /// - `ALADIN`: 알라딘 API를 이용한 도서 데이터 수집
+    /// - `KYOBO`: 교보문고 파싱을 통한 도서 데이터 수집
+    #[arg(short, long)]
+    pub job: String,
+
+    /// 수집할 도서의 출판일 검색 시작 날짜
+    #[arg(short, long)]
+    pub from: Option<String>,
+
+    /// 수집할 도서의 출판일 검색 종료 날짜
+    #[arg(short, long)]
+    pub to: Option<String>,
+
+    /// 검색할 도서의 출판사 아이디
+    #[arg(short, long, num_args = 1..)]
+    pub publisher_id: Option<Vec<usize>>,
 }
 
 impl Argument {
-    pub fn new(arguments: &[String]) -> Result<Self, ArgumentError> {
-        let job_raw = &arguments[1];
-        let job_name = JobName::from_str(job_raw)?;
 
-        let arg_len = arguments.len();
-        if arg_len == 2 {
-            return Ok(Self {
-                job: job_name,
-                from: None,
-                to: None,
-            })
-        }
+    pub fn get_job(&self) -> JobName {
+        self.job.as_str().into()
+    }
 
-        if arg_len < 4 {
-            return Err(ArgumentError::InvalidArgument(format!("Invalid argument: {}", arguments.join(" "))));
-        }
+    pub fn get_from(&self) -> Option<chrono::NaiveDate> {
+        self.from.as_ref().map(|from| {
+            chrono::NaiveDate::parse_from_str(&from, "%Y-%m-%d").unwrap()
+        })
+    }
 
-        let from = chrono::NaiveDate::parse_from_str(&arguments[2], "%Y-%m-%d")
-            .map_err(|e| ArgumentError::InvalidArgument(format!("Invalid from date: {}", e)))?;
-        let to = chrono::NaiveDate::parse_from_str(&arguments[3], "%Y-%m-%d")
-            .map_err(|e| ArgumentError::InvalidArgument(format!("Invalid to date: {}", e)))?;
-
-        Ok(Self {
-            job: job_name,
-            from: Some(from),
-            to: Some(to),
+    pub fn get_to(&self) -> Option<chrono::NaiveDate> {
+        self.to.as_ref().map(|to| {
+            chrono::NaiveDate::parse_from_str(&to, "%Y-%m-%d").unwrap()
         })
     }
 }
 
-pub fn from_to(sub: u64, add: u64) -> (chrono::NaiveDate, chrono::NaiveDate) {
-    let current_date = chrono::Local::now();
-    let from = current_date
-        .checked_sub_days(chrono::Days::new(sub))
-        .unwrap()
-        .date_naive();
-    let to = current_date
-        .checked_add_days(chrono::Days::new(add))
-        .unwrap()
-        .date_naive();
-    (from, to)
+pub fn default_from_date() -> chrono::NaiveDate {
+    chrono::Local::now().checked_sub_days(chrono::Days::new(30)).unwrap().date_naive()
+}
+
+pub fn default_to_date() -> chrono::NaiveDate {
+    chrono::Local::now().checked_add_days(chrono::Days::new(60)).unwrap().date_naive()
 }

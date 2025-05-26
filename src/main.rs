@@ -2,27 +2,20 @@ use book_batch_rust::batch::JobParameter;
 use book_batch_rust::item::repo::{ComposeBookRepository, DieselFilterRepository, DieselPublisherRepository};
 use book_batch_rust::provider::api::{aladin, naver, nlgo};
 use book_batch_rust::provider::html::kyobo;
-use book_batch_rust::{batch, configs, from_to, JobName};
-use tracing::error;
+use book_batch_rust::{batch, configs, JobName};
+use clap::Parser;
 
 fn main() {
     configs::load_dotenv();
     configs::set_global_logging_config().expect("Failed to set global logging config");
     
-    let args = std::env::args().collect::<Vec<String>>();
-    let args = book_batch_rust::Argument::new(&args).unwrap_or_else(|err| {
-        error!("{:?}", err);
-        std::process::exit(1);
-    });
+    let args = book_batch_rust::Argument::parse();
     
     let connection = configs::connect_to_postgres();
     let mongo_client = configs::connect_to_mongo();
 
-    let (from, to) = if let (Some(from), Some(to)) = (args.from, args.to) {
-        (from, to)
-    } else {
-        from_to(30, 60)
-    };
+    let from = args.get_from().unwrap_or_else(|| book_batch_rust::default_from_date());
+    let to = args.get_to().unwrap_or_else(|| book_batch_rust::default_to_date());
 
     let publisher_repository = || DieselPublisherRepository::new(connection.clone());
     let book_repository = || ComposeBookRepository::with_origin(connection.clone(), mongo_client.clone());
@@ -32,7 +25,7 @@ fn main() {
     parameter.insert(batch::book::PARAM_NAME_FROM_DT.to_owned(), from.format("%Y-%m-%d").to_string());
     parameter.insert(batch::book::PARAM_NAME_TO_DT.to_owned(), to.format("%Y-%m-%d").to_string());
 
-    match args.job {
+    match args.get_job() {
         JobName::NLGO => {
             let client = || nlgo::Client::new_with_env().unwrap();
             let job = batch::book::nlgo::create_job(
