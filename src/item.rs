@@ -1,4 +1,5 @@
 pub mod repo;
+mod raw_impl;
 
 use regex::Regex;
 use std::cell::RefCell;
@@ -33,24 +34,27 @@ pub enum Site {
     KyoboBook
 }
 
-impl Site {
+impl TryFrom<&str> for Site {
+    type Error = ItemError;
 
-    pub fn from_str(code: &str) -> Result<Self, ItemError> {
-        match code.to_lowercase().as_str() {
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        match value.to_lowercase().as_str() {
             "nlgo" => Ok(Site::NLGO),
             "naver" => Ok(Site::Naver),
             "aladin" => Ok(Site::Aladin),
             "kyobo" => Ok(Site::KyoboBook),
-            _ => Err(ItemError::UnknownCode(code.to_owned()))
+            _ => Err(ItemError::UnknownCode(value.to_owned()))
         }
     }
+}
 
-    pub fn to_code_str(&self) -> String {
+impl Display for Site {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
-            Site::NLGO => "NLGO".to_owned(),
-            Site::Naver => "NAVER".to_owned(),
-            Site::Aladin => "ALADIN".to_owned(),
-            Site::KyoboBook => "KYOBO".to_owned()
+            Site::NLGO => write!(f, "NLGO"),
+            Site::Naver => write!(f, "NAVER"),
+            Site::Aladin => write!(f, "ALADIN"),
+            Site::KyoboBook => write!(f, "KYOBO"),
         }
     }
 }
@@ -236,166 +240,16 @@ pub enum RawValue {
     Array(Vec<RawValue>),
 }
 
-impl From<i32> for RawValue {
-    fn from(value: i32) -> Self {
-        Self::Number(RawNumber::SignedInt(value as i64))
-    }
-}
-
-impl From<i64> for RawValue {
-    fn from(value: i64) -> Self {
-        Self::Number(RawNumber::SignedInt(value))
-    }
-}
-
-impl From<u32> for RawValue {
-    fn from(value: u32) -> Self {
-        Self::Number(RawNumber::UnsignedInt(value as u64))
-    }
-}
-
-impl From<u64> for RawValue {
-    fn from(value: u64) -> Self {
-        Self::Number(RawNumber::UnsignedInt(value))
-    }
-}
-
-impl From<usize> for RawValue {
-    fn from(value: usize) -> Self {
-        Self::Number(RawNumber::UnsignedInt(value as u64))
-    }
-}
-
-impl From<&str> for RawValue {
-    fn from(value: &str) -> Self {
-        Self::Text(value.to_owned())
-    }
-}
-
-impl From<bool> for RawValue {
-    fn from(value: bool) -> Self {
-        Self::Bool(value)
-    }
-}
-
-impl From<serde_json::Value> for RawValue {
-
-    fn from(value: serde_json::Value) -> Self {
-        match value {
-            serde_json::Value::Null => Self::Null,
-            serde_json::Value::Bool(b) => Self::Bool(b),
-            serde_json::Value::Number(n) => {
-                if n.is_i64() {
-                    Self::Number(RawNumber::SignedInt(n.as_i64().unwrap()))
-                } else if n.is_u64() {
-                    Self::Number(RawNumber::UnsignedInt(n.as_u64().unwrap()))
-                } else if n.is_f64() {
-                    Self::Number(RawNumber::Float(n.as_f64().unwrap()))
-                } else {
-                    warn!("Unknown number type: {:?}", n);
-                    Self::Number(RawNumber::SignedInt(0))
-                }
-            }
-            serde_json::Value::String(s) => Self::from(s.as_str()),
-            serde_json::Value::Array(arr) => {
-                let arr = arr.iter()
-                    .map(|v| RawValue::from(v.clone()))
-                    .collect();
-                Self::Array(arr)
-            }
-            serde_json::Value::Object(o) => {
-                let mut obj = HashMap::new();
-                for (k, v) in o {
-                    obj.insert(k.to_owned(), RawValue::from(v.clone()));
-                }
-                Self::Object(obj)
-            }
-        }
-    }
-}
-
-impl RawValue {
-    fn to_serde_json(&self) -> serde_json::Value {
-        match self {
-            RawValue::Null => serde_json::Value::Null,
-            RawValue::Text(s) => serde_json::Value::String(s.clone()),
-            RawValue::Number(n) => {
-                match n {
-                    RawNumber::UnsignedInt(n) => serde_json::Value::Number(serde_json::Number::from(n.clone())),
-                    RawNumber::SignedInt(n) => serde_json::Value::Number(serde_json::Number::from(n.clone())),
-                    RawNumber::Float(n) => {
-                        let n = serde_json::Number::from_f64(n.clone());
-                        if n.is_some() {
-                            serde_json::Value::from(n.unwrap())
-                        } else {
-                            serde_json::Value::Number(serde_json::Number::from(0))
-                        }
-                    },
-                }
-            }
-            RawValue::Bool(b) => serde_json::Value::Bool(b.clone()),
-            RawValue::Object(o) => {
-                let mut map: serde_json::Map<String, serde_json::Value> = serde_json::Map::new();
-                for (k, v) in o {
-                    map.insert(k.clone(), v.to_serde_json());
-                }
-                serde_json::Value::Object(map)
-            }
-            RawValue::Array(arr) => {
-                let mut arr_value = Vec::new();
-                for v in arr {
-                    arr_value.push(v.to_serde_json());
-                }
-                serde_json::Value::Array(arr_value)
-            }
-        }
-    }
-}
-
-impl Display for RawValue {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        match self {
-            RawValue::Null => write!(f, "null"),
-            RawValue::Text(text) => write!(f, "{}", text),
-            RawValue::Number(number) => write!(f, "{}", number),
-            RawValue::Bool(bool) => write!(f, "{}", bool),
-            RawValue::Object(object) => write!(f, "{:?}", object),
-            RawValue::Array(array) => write!(f, "{:?}", array),
-        }
-    }
-}
-
 #[derive(Debug, Copy, Clone)]
 pub enum RawNumber {
+    Undefined,
+
     UnsignedInt(u64),
 
     SignedInt(i64),
 
     Float(f64),
 }
-
-impl Display for RawNumber {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        match self {
-            RawNumber::UnsignedInt(n) => write!(f, "{:?}", n),
-            RawNumber::SignedInt(n) => write!(f, "{:?}", n),
-            RawNumber::Float(n) => write!(f, "{:?}", n),
-        }
-    }
-}
-
-impl PartialEq for RawNumber {
-    fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (RawNumber::UnsignedInt(a), RawNumber::UnsignedInt(b)) => a == b,
-            (RawNumber::SignedInt(a), RawNumber::SignedInt(b)) => a == b,
-            (RawNumber::Float(a), RawNumber::Float(b)) => a == b,
-            _ => false,
-        }
-    }
-}
-
-impl Eq for RawNumber {}
 
 pub type Raw = HashMap<String, RawValue>;
 

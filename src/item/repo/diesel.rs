@@ -348,7 +348,7 @@ impl BookOriginFilterPgStore {
             .map_err(|e| Error::ConnectError(e.to_string()))?;
 
         let results = book_origin_filter
-            .filter(db_site.eq(&site.to_code_str()))
+            .filter(db_site.eq(site.to_string()))
             .select(BookOriginFilterEntity::as_select())
             .load(&mut connection)
             .map_err(|e| Error::SqlExecuteError(e.to_string()))?;

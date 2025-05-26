@@ -24,7 +24,7 @@ impl SerializeAs<Site> for SiteFromStr {
     where
         S: Serializer
     {
-        serializer.collect_str(&source.to_code_str())
+        serializer.collect_str(source)
     }
 }
 
@@ -45,7 +45,7 @@ impl <'de> DeserializeAs<'de, Site> for SiteFromStr {
             where
                 E: serde::de::Error,
             {
-                Site::from_str(v).map_err(|e| serde::de::Error::custom(e.to_string()))
+                Site::try_from(v).map_err(|e| serde::de::Error::custom(e.to_string()))
             }
         }
         deserializer.deserialize_str(Helper(PhantomData))
@@ -137,7 +137,7 @@ impl BookOriginDataStore {
             .map(|(site, raw)| {
                 let mut origin = BookOriginData::new(book_id, site.clone());
                 for (k, v) in raw {
-                    origin.add_origin(k, v.to_serde_json());
+                    origin.add_origin(k, v.clone().into());
                 }
                 origin
             });
@@ -153,7 +153,7 @@ impl BookOriginDataStore {
     }
 
     pub fn delete_site(&self, book_id: i64, site: &Site) -> Result<usize, Error> {
-        let doc = doc! { "book_id": book_id, "site": site.to_code_str() };
+        let doc = doc! { "book_id": book_id, "site": site.to_string() };
 
         let collection = self.client
             .database("workspace")

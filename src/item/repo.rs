@@ -292,7 +292,8 @@ fn map_with_keyword(publisher_with_keywords: Vec<(PublisherEntity, Option<Publis
             });
 
         if let Some(keyword) = keyword {
-            publisher.add_keyword(Site::from_str(keyword.site.as_str()).unwrap(), keyword.keyword.clone());
+            let site = Site::try_from(keyword.site.as_str()).unwrap();
+            publisher.add_keyword(site, keyword.keyword.clone());
         }
     }
 
