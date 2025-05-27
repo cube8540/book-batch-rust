@@ -11,8 +11,8 @@ use std::collections::{HashMap, HashSet};
 
 pub const PARAM_NAME_PUBLISHER: &'static str = "publisher";
 
-pub const PARAM_NAME_FROM_DT: &'static str = "from_dt";
-pub const PARAM_NAME_TO_DT: &'static str = "to_dt";
+pub const PARAM_NAME_FROM_DT: &'static str = "from";
+pub const PARAM_NAME_TO_DT: &'static str = "to";
 
 /// [`JobParameter`]에서 `시작일`과 `종료일`을 얻어 [`NaiveDate`]로 반환한다.
 /// 시작일의 키는 `from_dt` 종료일의 키는 `to_dt`를 사용한다. 시작일과 종료일은 `%Y-%m-%d` 포멧으로 파싱하며
@@ -25,8 +25,8 @@ pub const PARAM_NAME_TO_DT: &'static str = "to_dt";
 /// use book_batch_rust::batch::JobParameter;
 ///
 /// let mut params = JobParameter::new();
-/// params.insert("from_dt".to_owned(), "2025-05-01".to_owned());
-/// params.insert("to_dt".to_owned(), "2025-05-31".to_owned());
+/// params.insert("from".to_owned(), "2025-05-01".to_owned());
+/// params.insert("to".to_owned(), "2025-05-31".to_owned());
 ///
 /// let (from, to) = retrieve_from_to_in_parameter(&params).unwrap();
 /// assert_eq!(from, NaiveDate::from_ymd_opt(2025, 5, 1).unwrap());
