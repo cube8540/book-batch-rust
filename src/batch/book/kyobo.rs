@@ -4,7 +4,7 @@ use crate::batch::{Job, JobParameter, PhantomFilter, Processor, Reader};
 use crate::item::{Book, RawValue, SharedBookRepository, Site};
 use crate::provider::html::{kyobo, Client, ParsingError};
 use std::rc::Rc;
-use tracing::error;
+use tracing::{error, warn};
 
 pub struct KyoboReader<LP>
 where
@@ -86,18 +86,20 @@ impl Processor for KyoboAddSeriesOriginal {
             }
         };
         let book_items = self.api.get_series_list(item_id);
-        if book_items.is_err() {
-            return Err(JobProcessFailed::new(item, "failed to get series list".to_string()));
+        if book_items.is_ok() {
+            let book_items = book_items.unwrap();
+            let series = book_items.iter()
+                .map(|book_item| book_item.to_raw_val())
+                .collect::<Vec<_>>();
+
+            let new_book = item.to_builder()
+                .add_original_raw(Site::KyoboBook, "series", RawValue::Array(series));
+
+            Ok(new_book.build().unwrap())
+        } else {
+            warn!("Failed to get series list: {}({})", item.id(), item.isbn());
+            Ok(item)
         }
-        let book_items = book_items.unwrap();
-        let series = book_items.iter()
-            .map(|book_item| book_item.to_raw_val())
-            .collect::<Vec<_>>();
-
-        let new_book = item.to_builder()
-            .add_original_raw(Site::KyoboBook, "series", RawValue::Array(series));
-
-        Ok(new_book.build().unwrap())
     }
 }
 
