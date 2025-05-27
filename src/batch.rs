@@ -3,7 +3,6 @@ pub mod book;
 
 use crate::batch::error::{JobBuildError, JobProcessFailed, JobReadFailed, JobRuntimeError, JobWriteFailed};
 use std::collections::HashMap;
-use tracing_subscriber::fmt::writer;
 
 pub type JobParameter = HashMap<String, String>;
 
