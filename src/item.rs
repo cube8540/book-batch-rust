@@ -107,6 +107,7 @@ pub trait PublisherRepository {
 }
 
 /// 도서 시리즈
+#[derive(Debug)]
 pub struct Series {
     id: u64,
     title: Option<String>,
@@ -214,6 +215,8 @@ impl SeriesBuilder {
         })
     }
 }
+
+pub type SharedSeriesRepository = Rc<Box<dyn SeriesRepository>>;
 
 /// 시리즈 저장소
 pub trait SeriesRepository {

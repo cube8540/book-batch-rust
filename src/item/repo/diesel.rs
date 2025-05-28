@@ -120,7 +120,7 @@ impl SeriesPgStore {
         let mut connection = self.pool.get()
             .map_err(|e| Error::ConnectError(e.to_string()))?;
 
-        let cosine_distance_query = QueryDsl::order(db_series, db_vec.cosine_distance(pgvector::Vector::from(vec.clone())).desc());
+        let cosine_distance_query = QueryDsl::order(db_series, db_vec.cosine_distance(pgvector::Vector::from(vec.clone())));
         let result = cosine_distance_query
             .limit(limit as i64)
             .select((
