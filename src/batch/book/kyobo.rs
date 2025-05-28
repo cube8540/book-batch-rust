@@ -1,6 +1,6 @@
 use crate::batch::book::{retrieve_from_to_in_parameter, UpsertBookWriter};
 use crate::batch::error::{JobProcessFailed, JobReadFailed};
-use crate::batch::{Job, JobParameter, PhantomFilter, Processor, Reader};
+use crate::batch::{job_builder, Job, JobParameter, Processor, Reader};
 use crate::item::{Book, RawValue, SharedBookRepository, Site};
 use crate::provider::html::{kyobo, Client, ParsingError};
 use std::rc::Rc;
@@ -111,11 +111,9 @@ pub fn create_job<LP>(
 where
     LP: kyobo::LoginProvider + 'static,
 {
-    Job::builder()
-        .reader(KyoboReader::new(client.clone(), book_repo.clone()))
-        .filter(PhantomFilter::new())
-        .processor(KyoboAddSeriesOriginal::new(api.clone()))
-        .writer(UpsertBookWriter::new(book_repo.clone()))
+    job_builder()
+        .reader(Box::new(KyoboReader::new(client.clone(), book_repo.clone())))
+        .processor(Box::new(KyoboAddSeriesOriginal::new(api.clone())))
+        .writer(Box::new(UpsertBookWriter::new(book_repo.clone())))
         .build()
-        .unwrap()
 }

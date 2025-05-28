@@ -1,6 +1,6 @@
 use crate::batch::book::{retrieve_from_to_in_parameter, UpsertBookWriter};
 use crate::batch::error::JobReadFailed;
-use crate::batch::{Job, JobParameter, PhantomFilter, PhantomProcessor, Reader};
+use crate::batch::{job_builder, Job, JobParameter, Reader};
 use crate::item::{Book, SharedBookRepository};
 use crate::provider;
 use crate::provider::api::{naver, Client};
@@ -41,11 +41,8 @@ pub fn create_job(
     client: Rc<naver::Client>,
     book_repo: SharedBookRepository,
 ) -> Job<Book, Book> {
-    Job::builder()
-        .reader(NaverReader::new(client.clone(), book_repo.clone()))
-        .filter(PhantomFilter::new())
-        .processor(PhantomProcessor::new())
-        .writer(UpsertBookWriter::new(book_repo.clone()))
+    job_builder()
+        .reader(Box::new(NaverReader::new(client.clone(), book_repo.clone())))
+        .writer(Box::new(UpsertBookWriter::new(book_repo.clone())))
         .build()
-        .unwrap()
 }

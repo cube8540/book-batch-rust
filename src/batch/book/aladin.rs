@@ -1,6 +1,6 @@
 use crate::batch::book::{create_default_filter_chain, ByPublisher, OriginalDataFilter, UpsertBookWriter};
 use crate::batch::error::JobReadFailed;
-use crate::batch::{Job, JobParameter, PhantomProcessor, Reader};
+use crate::batch::{job_builder, Job, JobParameter, Reader};
 use crate::item::{Book, BookBuilder, BookRepository, FilterRepository, PublisherRepository, SharedPublisherRepository, Site};
 use crate::provider;
 use crate::provider::api::{aladin, Client};
@@ -72,11 +72,9 @@ pub fn create_job(
     let filter_chain = create_default_filter_chain()
         .add_filter(Box::new(OriginalDataFilter::new(filter_repo.clone(), Site::Aladin)));
 
-    Job::builder()
-        .reader(AladinReader::new(client.clone(), publisher_repo.clone()))
-        .filter(filter_chain)
-        .processor(PhantomProcessor::new())
-        .writer(UpsertBookWriter::new(book_repo.clone()))
+    job_builder()
+        .reader(Box::new(AladinReader::new(client.clone(), publisher_repo.clone())))
+        .filter(Box::new(filter_chain))
+        .writer(Box::new(UpsertBookWriter::new(book_repo.clone())))
         .build()
-        .unwrap()
 }

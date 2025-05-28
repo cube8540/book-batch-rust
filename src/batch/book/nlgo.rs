@@ -1,6 +1,6 @@
 use crate::batch::book::{create_default_filter_chain, retrieve_from_to_in_parameter, ByPublisher, OnlyNewBooksWriter, OriginalDataFilter};
 use crate::batch::error::JobReadFailed;
-use crate::batch::{Job, JobParameter, PhantomProcessor, Reader};
+use crate::batch::{job_builder, Job, JobParameter, Reader};
 use crate::item::{Book, BookBuilder, SharedBookRepository, SharedFilterRepository, SharedPublisherRepository, Site};
 use crate::provider;
 use crate::provider::api::{nlgo, Client};
@@ -68,12 +68,10 @@ pub fn create_job(
 ) -> Job<Book, Book> {
     let filter_chain = create_default_filter_chain()
         .add_filter(Box::new(OriginalDataFilter::new(filter_repo.clone(), Site::NLGO)));
-
-    Job::builder()
-        .reader(NlgoBookReader::new(client.clone(), pub_repo.clone()))
-        .filter(filter_chain)
-        .processor(PhantomProcessor::new())
-        .writer(OnlyNewBooksWriter::new(book_repo.clone()))
+    
+    job_builder()
+        .reader(Box::new(NlgoBookReader::new(client.clone(), pub_repo.clone())))
+        .filter(Box::new(filter_chain))
+        .writer(Box::new(OnlyNewBooksWriter::new(book_repo.clone())))
         .build()
-        .unwrap()
 }
