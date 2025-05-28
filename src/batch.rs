@@ -86,16 +86,15 @@ impl<I, O> Job<I, O>  {
             items
         };
 
-        let mut targets: Vec<O> = Vec::new();
-        for item in items {
-            let target = self.processor.do_process(item)
-                .map_err(|e| JobRuntimeError::ProcessFailed(e))?;
-            targets.push(target);
-        }
-
-        let chunks = chunk_with_owned(targets, self.chunk_size);
+        let chunks = chunk_with_owned(items, self.chunk_size);
         for chunk in chunks {
-            self.writer.do_write(chunk).map_err(|e| JobRuntimeError::WriteFailed(e))?;
+            let mut targets = Vec::new();
+            for item in chunk {
+                let target = self.processor.do_process(item)
+                    .map_err(|e| JobRuntimeError::ProcessFailed(e))?;
+                targets.push(target);
+            }
+            self.writer.do_write(targets).map_err(|e| JobRuntimeError::WriteFailed(e))?;
         }
 
         Ok(())
