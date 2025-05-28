@@ -111,7 +111,7 @@ pub struct Series {
     id: u64,
     title: Option<String>,
     isbn: Option<String>,
-    vec: Option<Vec<i8>>,
+    vec: Option<Vec<f32>>,
     registered_at: Option<chrono::NaiveDateTime>,
     modified_at: Option<chrono::NaiveDateTime>
 }
@@ -133,7 +133,7 @@ impl Series {
         &self.isbn
     }
 
-    pub fn vec(&self) -> &Option<Vec<i8>> {
+    pub fn vec(&self) -> &Option<Vec<f32>> {
         &self.vec
     }
 
@@ -146,11 +146,17 @@ impl Series {
     }
 }
 
+impl AsRef<Series> for Series {
+    fn as_ref(&self) -> &Series {
+        self
+    }
+}
+
 pub struct SeriesBuilder {
     id: Option<u64>,
     title: Option<String>,
     isbn: Option<String>,
-    vec: Option<Vec<i8>>,
+    vec: Option<Vec<f32>>,
     registered_at: Option<chrono::NaiveDateTime>,
     modified_at: Option<chrono::NaiveDateTime>,
 }
@@ -182,7 +188,7 @@ impl SeriesBuilder {
         self
     }
 
-    pub fn vec(mut self, vec: Vec<i8>) -> Self {
+    pub fn vec(mut self, vec: Vec<f32>) -> Self {
         self.vec = Some(vec);
         self
     }
@@ -218,13 +224,13 @@ pub trait SeriesRepository {
     /// 전달 받은 시리즈의 백터([`Series::vec`])와 가장 유사한 시리즈를 limit 개수 만큼 찾는다.
     ///
     /// 결과는 튜플로 (유사 시리즈 - 유사도)로 묶여 반환된다.
-    fn similarity(&self, series: &Series, limit: i32) -> Vec<(Series, f32)>;
+    fn similarity(&self, series: &Series, limit: i32) -> Vec<(Series, Option<f64>)>;
 
     /// 전달 받은 시리즈들을 저장소에 저장한다.
     fn new_series(&self, series: &[Series]) -> Vec<Series>;
 
-    /// 전달 받은 시리즈 정보로 저장소의 시리지를 업데이트 한다.
-    fn update_series(&self, series: &Series) -> usize;
+    /// 전달 받은 시리즈의 `ISBN`을 업데이트 한다.
+    fn update_series_isbn(&self, series_id: u64, isbn: &str) -> usize;
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]

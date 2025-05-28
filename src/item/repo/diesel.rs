@@ -1,6 +1,8 @@
-use crate::item::{Book, BookBuilder, FilterRule, Operator, Site};
+use crate::item::{Book, BookBuilder, FilterRule, Operator, Series, Site};
 use diesel::prelude::*;
+use diesel::query_dsl::methods::OrderDsl;
 use diesel::r2d2::ConnectionManager;
+use pgvector::VectorExpressionMethods;
 use r2d2::Pool;
 use regex::Regex;
 use std::str::FromStr;
@@ -11,7 +13,161 @@ mod schema;
 pub enum Error {
     ConnectError(String),
 
+    InvalidParameter(String),
+
     SqlExecuteError(String)
+}
+
+const SERIES_VECTOR_DIMENSION: usize = 1024;
+
+#[derive(Queryable, Selectable)]
+#[diesel(table_name = schema::books::series)]
+#[diesel(check_for_backend(diesel::pg::Pg))]
+pub struct SeriesEntity {
+    pub id: i64,
+    pub name: Option<String>,
+    pub isbn: Option<String>,
+    pub vec: Option<pgvector::Vector>,
+    pub registered_at : chrono::NaiveDateTime,
+    pub modified_at: Option<chrono::NaiveDateTime>,
+}
+
+impl From<SeriesEntity> for Series {
+
+    fn from(value: SeriesEntity) -> Self {
+        let mut builder = Series::builder()
+            .id(value.id as u64)
+            .registered_at(value.registered_at);
+
+        if let Some(name) = value.name {
+            builder = builder.title(name);
+        }
+        if let Some(pgvector) = value.vec {
+            builder = builder.vec(pgvector.to_vec());
+        }
+        if let Some(modified_at) = value.modified_at {
+            builder = builder.modified_at(modified_at);
+        }
+        if let Some(isbn) = value.isbn {
+            builder = builder.isbn(isbn);
+        }
+        builder.build().unwrap()
+    }
+}
+
+#[derive(Insertable)]
+#[diesel(table_name = schema::books::series)]
+pub struct NewSeries<'a> {
+    pub name: Option<&'a str>,
+    pub isbn: Option<&'a str>,
+    pub vec: Option<pgvector::Vector>,
+    pub registered_at : chrono::NaiveDateTime
+}
+
+impl <'a> From<&'a Series> for NewSeries<'a> {
+    fn from(value: &'a Series) -> Self {
+        Self {
+            name: value.title().as_ref().map(|x| x.as_str()),
+            isbn: value.isbn().as_ref().map(|x| x.as_str()),
+            vec: value.vec().as_ref().map(|x| pgvector::Vector::from(x.clone())),
+            registered_at: chrono::Local::now().naive_local(),
+        }
+    }
+}
+
+pub struct SeriesPgStore {
+    pool: Pool<ConnectionManager<PgConnection>>
+}
+
+impl SeriesPgStore {
+    pub fn new(pool: Pool<ConnectionManager<PgConnection>>) -> Self {
+        Self { pool }
+    }
+}
+
+impl SeriesPgStore {
+    pub fn find_by_isbn(&self, isbn: &[&str]) -> Result<Vec<SeriesEntity>, Error> {
+        use schema::books::series::dsl::{id, series};
+        use schema::books::series::dsl::isbn as db_isbn;
+
+        let mut connection = self.pool.get()
+            .map_err(|e| Error::ConnectError(e.to_string()))?;
+
+        let result = series
+            .filter(db_isbn.eq_any(isbn))
+            .order_by(id.asc())
+            .select(SeriesEntity::as_select())
+            .load(&mut connection)
+            .map_err(|e| Error::SqlExecuteError(e.to_string()))?;
+
+        Ok(result)
+    }
+
+    pub fn cosine_distance(&self, series: &Series, limit: i32) -> Result<Vec<(SeriesEntity, Option<f64>)>, Error> {
+        use schema::books::series::dsl::series as db_series;
+        use schema::books::series::dsl::vec as db_vec;
+        use pgvector::VectorExpressionMethods;
+
+        if series.vec().is_none() {
+            return Err(Error::InvalidParameter("series.vec is must not be null".to_owned()))
+        }
+
+        let vec = series.vec().as_ref().unwrap();
+        if vec.len() != SERIES_VECTOR_DIMENSION {
+            return Err(Error::InvalidParameter("vector dimension is must be 1024".to_owned()))
+        }
+
+        let mut connection = self.pool.get()
+            .map_err(|e| Error::ConnectError(e.to_string()))?;
+
+        let cosine_distance_query = QueryDsl::order(db_series, db_vec.cosine_distance(pgvector::Vector::from(vec.clone())).desc());
+        let result = cosine_distance_query
+            .limit(limit as i64)
+            .select((
+                SeriesEntity::as_select(),
+                db_vec.cosine_distance(pgvector::Vector::from(vec.clone()))
+            ))
+            .load::<(SeriesEntity, Option<f64>)>(&mut connection)
+            .map_err(|err| Error::SqlExecuteError(err.to_string()))?;
+
+        Ok(result)
+    }
+
+    pub fn new_series<T: AsRef<Series>>(&self, series: &[T]) -> Result<Vec<SeriesEntity>, Error> {
+        use schema::books::series as db_series;
+
+        let mut connection = self.pool.get()
+            .map_err(|e| Error::ConnectError(e.to_string()))?;
+
+        let entities = series.iter()
+            .map(|s| NewSeries::from(s.as_ref()))
+            .collect::<Vec<_>>();
+
+        let results = diesel::insert_into(db_series::table)
+            .values(entities)
+            .returning(SeriesEntity::as_select())
+            .get_results(&mut connection)
+            .map_err(|e| Error::SqlExecuteError(e.to_string()))?;
+
+        Ok(results)
+    }
+
+    pub fn update_series_isbn(&self, series_id: u64, isbn: &str) -> Result<usize, Error> {
+        use schema::books::series::dsl::series as db_series;
+        use schema::books::series::dsl::id;
+        use schema::books::series::dsl::isbn as db_isbn;
+
+        let mut connection = self.pool.get()
+            .map_err(|e| Error::ConnectError(e.to_string()))?;
+
+        let updated_count = diesel::update(db_series)
+            .filter(id.eq(series_id as i64))
+            .set(db_isbn.eq(isbn))
+            .execute(&mut connection)
+            .map_err(|e| Error::SqlExecuteError(e.to_string()))?;
+
+        Ok(updated_count)
+    }
 }
 
 #[derive(Queryable, Selectable)]

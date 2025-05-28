@@ -23,3 +23,4 @@ thirtyfour_sync = "0.27.1"
 scraper = "0.23.1"
 mongodb = { version = "3.2.3", features = ["sync"] }
 clap = { version = "4.5.38", features = ["derive"] }
+pgvector = { version = "0.4", features = ["diesel"] }

@@ -4,6 +4,8 @@
 [print_schema]
 schema = "books"
 file = "src/item/diesel/schema.rs"
+import_types = ["diesel::sql_types::*", "pgvector::sql_types::*"]
+generate_missing_sql_type_definitions = false
 custom_type_derives = ["diesel::query_builder::QueryId", "Clone"]
 filter = { "except_tables" = ["book_origin_data"] }
 

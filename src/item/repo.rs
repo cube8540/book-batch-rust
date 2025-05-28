@@ -1,6 +1,6 @@
-use crate::item::repo::diesel::{BookEntity, BookOriginFilterPgStore, BookPgStore, PublisherEntity, PublisherKeywordEntity, PublisherPgStore};
+use crate::item::repo::diesel::{BookEntity, BookOriginFilterPgStore, BookPgStore, PublisherEntity, PublisherKeywordEntity, PublisherPgStore, SeriesPgStore};
 use crate::item::repo::mongo::BookOriginDataStore;
-use crate::item::{Book, BookRepository, FilterRepository, FilterRule, Publisher, PublisherRepository, Raw, Site};
+use crate::item::{Book, BookRepository, FilterRepository, FilterRule, Publisher, PublisherRepository, Raw, Series, SeriesRepository, Site};
 use chrono::NaiveDate;
 use ::diesel::r2d2::ConnectionManager;
 use ::diesel::PgConnection;
@@ -15,6 +15,52 @@ use tracing::error;
 
 mod diesel;
 mod mongo;
+
+pub struct DieselSeriesRepository {
+    series_store: SeriesPgStore
+}
+
+impl DieselSeriesRepository {
+    pub fn new(db_pool: Pool<ConnectionManager<PgConnection>>) -> Self {
+        Self {
+            series_store: SeriesPgStore::new(db_pool),
+        }
+    }
+}
+
+impl SeriesRepository for DieselSeriesRepository {
+
+    fn find_by_isbn(&self, isbn: &[&str]) -> Vec<Series> {
+        let entities = self.series_store.find_by_isbn(isbn)
+            .unwrap_or_else(logging_with_default_vec);
+
+        entities.into_iter()
+            .map(|series| series.into())
+            .collect()
+    }
+
+    fn similarity(&self, series: &Series, limit: i32) -> Vec<(Series, Option<f64>)> {
+        let results = self.series_store.cosine_distance(series, limit)
+            .unwrap_or_else(logging_with_default_vec);
+
+        results.into_iter()
+            .map(|(series, score)| (series.into(), score))
+            .collect()
+    }
+
+    fn new_series(&self, series: &[Series]) -> Vec<Series> {
+        self.series_store.new_series(series)
+            .unwrap_or_else(logging_with_default_vec)
+            .into_iter()
+            .map(|series| series.into())
+            .collect()
+    }
+
+    fn update_series_isbn(&self, series_id: u64, isbn: &str) -> usize {
+        self.series_store.update_series_isbn(series_id, isbn)
+            .unwrap_or_else(logging_with_default_usize)
+    }
+}
 
 pub struct ComposeBookRepository {
     book_store: BookPgStore,

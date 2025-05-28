@@ -1,13 +1,10 @@
 // @generated automatically by Diesel CLI.
 
 pub mod books {
-    pub mod sql_types {
-        #[derive(diesel::query_builder::QueryId, Clone, diesel::sql_types::SqlType)]
-        #[diesel(postgres_type(name = "vector"))]
-        pub struct Vector;
-    }
-
     diesel::table! {
+        use diesel::sql_types::*;
+        use pgvector::sql_types::*;
+
         books.book (id) {
             id -> Int8,
             #[max_length = 13]
@@ -24,6 +21,9 @@ pub mod books {
     }
 
     diesel::table! {
+        use diesel::sql_types::*;
+        use pgvector::sql_types::*;
+
         books.book_origin_filter (id) {
             id -> Int8,
             #[max_length = 64]
@@ -43,6 +43,9 @@ pub mod books {
     }
 
     diesel::table! {
+        use diesel::sql_types::*;
+        use pgvector::sql_types::*;
+
         books.publisher (id) {
             id -> Int8,
             #[max_length = 128]
@@ -51,6 +54,9 @@ pub mod books {
     }
 
     diesel::table! {
+        use diesel::sql_types::*;
+        use pgvector::sql_types::*;
+
         books.publisher_keyword (publisher_id, site, keyword) {
             publisher_id -> Int8,
             #[max_length = 32]
@@ -62,7 +68,7 @@ pub mod books {
 
     diesel::table! {
         use diesel::sql_types::*;
-        use super::sql_types::Vector;
+        use pgvector::sql_types::*;
 
         books.series (id) {
             id -> Int8,
