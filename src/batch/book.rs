@@ -239,18 +239,12 @@ pub fn create_default_filter_chain() -> FilterChain {
 
 pub struct OnlyNewBooksWriter {
     repo: SharedBookRepository,
-    chunk_size: usize,
 }
 
 impl OnlyNewBooksWriter {
     pub fn new(repo: SharedBookRepository) -> Self {
-        Self::new_with_chunk_size(repo, 100)
-    }
-
-    pub fn new_with_chunk_size(repo: SharedBookRepository, chunk_size: usize) -> Self {
         Self {
             repo,
-            chunk_size
         }
     }
 }
@@ -265,31 +259,23 @@ impl Writer for OnlyNewBooksWriter {
             .filter(|b| !exists_in_db.contains_key(b.isbn()))
             .collect::<Vec<_>>();
 
-        let chunks = new_books.chunks(self.chunk_size);
-        for chunk in chunks {
-            let wrote = self.repo.save_books(chunk);
-            if wrote.is_empty() {
-                return Err(JobWriteFailed::new(new_books, "No new books to write"))
-            }
+        let wrote = self.repo.save_books(&new_books);
+        if wrote.len() > 0 {
+            Ok(())
+        } else {
+            Err(JobWriteFailed::new(new_books, "No new books to write"))
         }
-        Ok(())
     }
 }
 
 pub struct UpsertBookWriter {
     repo: SharedBookRepository,
-    chunk_size: usize,
 }
 
 impl UpsertBookWriter {
     pub fn new(repo: SharedBookRepository) -> Self {
-        Self::new_with_chunk_size(repo, 100)
-    }
-
-    pub fn new_with_chunk_size(repo: SharedBookRepository, chunk_size: usize) -> Self {
         Self {
             repo,
-            chunk_size
         }
     }
 }
@@ -314,15 +300,12 @@ impl Writer for UpsertBookWriter {
             }
         }
 
-        let chunks = new_books.chunks(self.chunk_size);
-        for chunk in chunks {
-            let wrote = self.repo.save_books(chunk);
-            if wrote.is_empty() {
-                return Err(JobWriteFailed::new(new_books, "No new books to write"))
-            }
+        let wrote = self.repo.save_books(&new_books);
+        if wrote.len() > 0 {
+            Ok(())
+        } else {
+            Err(JobWriteFailed::new(new_books, "No new books to write"))
         }
-
-        Ok(())
     }
 }
 

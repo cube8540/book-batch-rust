@@ -59,14 +59,23 @@ pub trait Writer {
     fn do_write(&self, items: Vec<Self::Item>) -> Result<(), JobWriteFailed<Self::Item>>;
 }
 
+const DEF_CHUNK_SIZE: usize = 500;
+
 pub struct Job<I, O> {
     reader: Box<dyn Reader<Item = I>>,
     filter: Option<Box<dyn Filter<Item = I>>>,
     processor: Box<dyn Processor<In = I, Out = O>>,
     writer: Box<dyn Writer<Item = O>>,
+
+    chunk_size: usize,
 }
 
 impl<I, O> Job<I, O>  {
+    pub fn set_chunk_size(mut self, size: usize) -> Job<I, O> {
+        self.chunk_size = size;
+        self
+    }
+
     pub fn run(&self, params: &JobParameter) -> Result<(), JobRuntimeError<I, O>> {
         let items = self.reader.do_read(params)
             .map_err(|e| JobRuntimeError::ReadFailed(e))?;
@@ -84,10 +93,41 @@ impl<I, O> Job<I, O>  {
             targets.push(target);
         }
 
-        self.writer.do_write(targets).map_err(|e| JobRuntimeError::WriteFailed(e))?;
+        let chunks = chunk_with_owned(targets, self.chunk_size);
+        for chunk in chunks {
+            self.writer.do_write(chunk).map_err(|e| JobRuntimeError::WriteFailed(e))?;
+        }
 
         Ok(())
     }
+}
+
+/// 백터를 지정된 크기의 청크들로 분활 한다.
+/// 표준 라이브러리의 [`Vec::chunks`]와 달리 이 함수는 각 청크가 요소들의 소유권을 가지도록 한다.
+///
+/// # Panic
+/// - `size`가 0보다 작거나 같을 경우
+///
+/// # Example
+/// ```
+/// use book_batch_rust::batch::chunk_with_owned;
+///
+/// let vec = vec![1, 2, 3, 4, 5];
+/// let chunks = chunk_with_owned(vec, 2);
+/// assert_eq!(chunks, vec![vec![1, 2], vec![3, 4], vec![5]]);
+/// ```
+pub fn chunk_with_owned<T>(mut vec: Vec<T>, size: usize) -> Vec<Vec<T>> {
+    if size <= 0 {
+        panic!("size must be greater than 0");
+    }
+
+    let mut chunks = Vec::new();
+    while vec.len() > 0 {
+        let size = std::cmp::min(size, vec.len());
+        let chunk = vec.drain(..size).collect::<Vec<_>>();
+        chunks.push(chunk);
+    }
+    chunks
 }
 
 pub fn job_builder<I>() -> ReaderBuildStep<I> {
@@ -183,6 +223,7 @@ impl <I, O> WriterBuildStep<I, O> {
             filter: self.filter,
             processor: self.processor,
             writer: self.writer,
+            chunk_size: DEF_CHUNK_SIZE,
         }
     }
 }
