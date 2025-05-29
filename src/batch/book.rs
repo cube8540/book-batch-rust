@@ -4,7 +4,7 @@ pub mod aladin;
 pub mod kyobo;
 
 use crate::batch::error::{JobReadFailed, JobWriteFailed};
-use crate::batch::{Filter, JobParameter, Reader, Writer};
+use crate::batch::{Filter, FilterChain, JobParameter, Reader, Writer};
 use crate::item::{Book, BookBuilder, Publisher, SharedBookRepository, SharedFilterRepository, SharedPublisherRepository, Site};
 use chrono::NaiveDate;
 use std::collections::{HashMap, HashSet};
@@ -201,37 +201,7 @@ impl Filter for OriginalDataFilter {
     }
 }
 
-pub struct FilterChain {
-    filters: Vec<Box<dyn Filter<Item=Book>>>
-}
-
-impl FilterChain {
-    pub fn new() -> FilterChain {
-        FilterChain {
-            filters: Vec::new()
-        }
-    }
-
-    pub fn add_filter(mut self, filter: Box<dyn Filter<Item=Book>>) -> Self {
-        self.filters.push(filter);
-        self
-    }
-}
-
-impl Filter for FilterChain {
-    type Item = Book;
-
-    fn do_filter(&self, items: Vec<Self::Item>) -> Vec<Self::Item> {
-        if !self.filters.is_empty() {
-            self.filters.iter()
-                .fold(items, |books, filter| filter.do_filter(books))
-        } else {
-            items
-        }
-    }
-}
-
-pub fn create_default_filter_chain() -> FilterChain {
+pub fn create_default_filter_chain() -> FilterChain<Book> {
     FilterChain::new()
         .add_filter(Box::new(new_empty_isbn_filter()))
         .add_filter(Box::new(new_drop_duplicate_isbn_filter()))

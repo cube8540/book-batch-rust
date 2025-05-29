@@ -21,6 +21,78 @@ pub trait Filter {
     fn do_filter(&self, items: Vec<Self::Item>) -> Vec<Self::Item>;
 }
 
+/// 여러 필터들을 하나의 체인으로 결합하는 필터 체인 쿠조체
+///
+/// # Description
+/// 설정된 필터들을 순차적으로 실행하여 하나의 필터 처럼 동작시키며 이전에 실행한 필터의 결과를 다음 필터의 입력값으로 사용한다.
+/// 만약 설정된 필터가 없을 경우 최초로 입력 받은 데이터를 그대로 반환한다.
+///
+/// # Type
+/// - `T`: 필터링할 데이터 타입
+///
+/// # Example
+/// ```
+/// use book_batch_rust::batch::{Filter, FilterChain};
+///
+/// #[derive(Debug, PartialEq, Eq)]
+/// struct Data {
+/// 	id: i32,
+/// }
+///
+/// struct EvenNumberFilter;
+/// impl Filter for EvenNumberFilter {
+///     type Item = Data;
+///
+///     fn do_filter(&self, items: Vec<Self::Item>) -> Vec<Self::Item> {
+///         items.into_iter().filter(|data| data.id % 2 == 0).collect()
+///     }
+/// }
+///
+/// struct GraterThen2;
+/// impl Filter for GraterThen2 {
+///     type Item = Data;
+///
+///     fn do_filter(&self, items: Vec<Self::Item>) -> Vec<Self::Item> {
+///         items.into_iter().filter(|data| data.id > 2).collect()
+///     }
+/// }
+///
+/// let data_vec = vec![Data { id: 1 }, Data { id: 2 }, Data { id: 3 }, Data { id: 4 }];
+///
+/// let filter: FilterChain<Data> = FilterChain::new()
+///     .add_filter(Box::new(EvenNumberFilter {}))
+///     .add_filter(Box::new(GraterThen2 {}));
+///
+/// let filtered_data_vec = filter.do_filter(data_vec);
+/// assert_eq!(filtered_data_vec, vec![Data { id: 4 }]);
+/// ```
+pub struct FilterChain<T> {
+    filters: Vec<Box<dyn Filter<Item = T>>>,
+}
+
+impl <T> FilterChain<T> {
+    pub fn new() -> Self {
+        FilterChain { filters: Vec::new() }
+    }
+
+    pub fn add_filter(mut self, filter: Box<dyn Filter<Item = T>>) -> Self {
+        self.filters.push(filter);
+        self
+    }
+}
+
+impl <T> Filter for FilterChain<T> {
+    type Item = T;
+
+    fn do_filter(&self, items: Vec<Self::Item>) -> Vec<Self::Item> {
+        if !self.filters.is_empty() {
+            self.filters.iter().fold(items, |acc, filter| filter.do_filter(acc))
+        } else {
+            items
+        }
+    }
+}
+
 /// 배치잡 데이터 변환 트레이트 `In` 타입으로 들어온 데이터를 `Out` 타입으로 변경한다.
 /// 주로 `Reader`로 읽은 데이터의 변환이 필요하거나, 데이터에 더 많은 정보를 설정하기 위해 사용한다.
 pub trait Processor {
