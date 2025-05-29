@@ -1,6 +1,6 @@
 use crate::item::repo::diesel::{BookEntity, BookOriginFilterPgStore, BookPgStore, PublisherEntity, PublisherKeywordEntity, PublisherPgStore, SeriesPgStore};
 use crate::item::repo::mongo::BookOriginDataStore;
-use crate::item::{Book, BookRepository, FilterRepository, FilterRule, Publisher, PublisherRepository, Raw, Series, SeriesRepository, Site};
+use crate::item::{Book, BookBuilder, BookRepository, FilterRepository, FilterRule, Publisher, PublisherRepository, Raw, Series, SeriesRepository, Site};
 use chrono::NaiveDate;
 use ::diesel::r2d2::ConnectionManager;
 use ::diesel::PgConnection;
@@ -165,8 +165,9 @@ impl BookRepository for ComposeBookRepository {
 
         saved_book_entities.into_iter()
             .map(|e| {
-                let mut builder = e.to_domain_builder();
-                if let Some(originals) = isbn_with_origin.remove(&e.isbn) {
+                let entity_isbn = e.isbn.to_owned();
+                let mut builder: BookBuilder = e.into();
+                if let Some(originals) = isbn_with_origin.remove(&entity_isbn) {
                     for (site, original) in originals.into_iter() {
                         builder = builder.add_original(site.clone(), original.clone());
                     }
@@ -306,8 +307,9 @@ impl FilterRepository for DieselFilterRepository {
 }
 
 fn compose_entity_with_original(book_entity: BookEntity, originals: &mut HashMap<i64, (Site, Raw)>) -> Book {
-    let mut builder = book_entity.to_domain_builder();
-    if let Some((site, original)) = originals.remove(&book_entity.id) {
+    let entity_id = book_entity.id;
+    let mut builder: BookBuilder = book_entity.into();
+    if let Some((site, original)) = originals.remove(&entity_id) {
         builder = builder.add_original(site, original);
     }
     builder.build().unwrap()

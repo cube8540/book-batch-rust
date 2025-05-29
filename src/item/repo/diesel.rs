@@ -1,8 +1,6 @@
 use crate::item::{Book, BookBuilder, FilterRule, Operator, Series, Site};
 use diesel::prelude::*;
-use diesel::query_dsl::methods::OrderDsl;
 use diesel::r2d2::ConnectionManager;
-use pgvector::VectorExpressionMethods;
 use r2d2::Pool;
 use regex::Regex;
 use std::str::FromStr;
@@ -186,29 +184,30 @@ pub struct BookEntity {
     pub modified_at: Option<chrono::NaiveDateTime>,
 }
 
-impl BookEntity {
-    pub fn to_domain_builder(&self) -> BookBuilder {
+impl From<BookEntity> for BookBuilder {
+    fn from(value: BookEntity) -> Self {
         let mut builder = Book::builder()
-            .id(self.id as u64)
-            .isbn(self.isbn.clone())
-            .publisher_id(self.publisher_id as u64)
-            .title(self.title.clone())
-            .registered_at(self.registered_at.clone());
+            .id(value.id as u64)
+            .isbn(value.isbn.clone())
+            .publisher_id(value.publisher_id as u64)
+            .title(value.title.clone())
+            .registered_at(value.registered_at.clone());
 
-        if let Some(series_id) = self.series_id {
+        if let Some(series_id) = value.series_id {
             builder = builder.series_id(series_id as u64);
         }
-        if let Some(scheduled_pub_date) = self.scheduled_pub_date {
+        if let Some(scheduled_pub_date) = value.scheduled_pub_date {
             builder = builder.scheduled_pub_date(scheduled_pub_date);
         }
-        if let Some(actual_pub_date) = self.actual_pub_date {
+        if let Some(actual_pub_date) = value.actual_pub_date {
             builder = builder.actual_pub_date(actual_pub_date);
         }
-        if let Some(modified_at) = self.modified_at {
+        if let Some(modified_at) = value.modified_at {
             builder = builder.modified_at(modified_at);
         }
-        
+
         builder
+
     }
 }
 
@@ -224,15 +223,18 @@ pub struct NewBook<'a> {
     pub registered_at : chrono::NaiveDateTime
 }
 
-impl <'a, 'b> NewBook<'a> where 'b: 'a {
-    pub fn from(book: &'b Book) -> Self {
+impl <'a, 'b> From<&'b Book> for NewBook<'a>
+where
+    'b: 'a
+{
+    fn from(value: &'b Book) -> Self {
         Self {
-            isbn: book.isbn(),
-            publisher_id: book.publisher_id() as i64,
-            series_id: book.series_id().map(|id| id as i64),
-            title: book.title(),
-            scheduled_pub_date: book.scheduled_pub_date(),
-            actual_pub_date: book.actual_pub_date(),
+            isbn: value.isbn(),
+            publisher_id: value.publisher_id() as i64,
+            series_id: value.series_id().map(|id| id as i64),
+            title: value.title(),
+            scheduled_pub_date: value.scheduled_pub_date(),
+            actual_pub_date: value.actual_pub_date(),
             registered_at: chrono::Local::now().naive_local(),
         }
     }
@@ -248,13 +250,16 @@ pub struct BookForm<'a> {
     pub modified_at: chrono::NaiveDateTime
 }
 
-impl <'a, 'b> BookForm<'a> where 'b: 'a {
-    pub fn from(book: &'b Book) -> Self {
+impl <'a, 'b> From<&'b Book> for BookForm<'a>
+where
+    'b: 'a
+{
+    fn from(value: &'b Book) -> Self {
         Self {
-            series_id: book.series_id().map(|id| id as i64),
-            title: book.title(),
-            scheduled_pub_date: book.scheduled_pub_date(),
-            actual_pub_date: book.actual_pub_date(),
+            series_id: value.series_id().map(|id| id as i64),
+            title: value.title(),
+            scheduled_pub_date: value.scheduled_pub_date(),
+            actual_pub_date: value.actual_pub_date(),
             modified_at: chrono::Local::now().naive_local(),
         }
     }
