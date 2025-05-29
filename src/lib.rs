@@ -7,6 +7,7 @@ pub mod configs;
 pub mod provider;
 pub mod item;
 pub mod batch;
+mod prompt;
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash)]
 pub enum ArgumentError {

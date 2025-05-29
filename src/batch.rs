@@ -1,5 +1,6 @@
 pub mod error;
 pub mod book;
+pub mod series;
 
 use crate::batch::error::{JobProcessFailed, JobReadFailed, JobRuntimeError, JobWriteFailed};
 use std::collections::HashMap;
