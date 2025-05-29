@@ -2,7 +2,14 @@ use crate::item::{RawNumber, RawValue};
 use std::collections::HashMap;
 use std::fmt;
 use std::fmt::{Display, Formatter};
+use std::num::IntErrorKind;
 use tracing::warn;
+
+pub enum ParseError {
+    IntError(IntErrorKind),
+
+    FloatError,
+}
 
 impl Display for RawNumber {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
@@ -37,10 +44,36 @@ impl From<i32> for RawNumber {
     }
 }
 
+impl TryFrom<RawNumber> for i32 {
+    type Error = ParseError;
+
+    fn try_from(value: RawNumber) -> Result<Self, Self::Error> {
+        match value {
+            RawNumber::Undefined => Err(ParseError::IntError(IntErrorKind::Empty)),
+            RawNumber::UnsignedInt(i) => Ok(i as i32),
+            RawNumber::SignedInt(i) => Ok(i as i32),
+            RawNumber::Float(_) => Err(ParseError::IntError(IntErrorKind::InvalidDigit)),
+        }
+    }
+}
+
 impl From<i64> for RawNumber {
 
     fn from(value: i64) -> Self {
         Self::SignedInt(value)
+    }
+}
+
+impl TryFrom<RawNumber> for i64 {
+    type Error = ParseError;
+
+    fn try_from(value: RawNumber) -> Result<Self, Self::Error> {
+        match value {
+            RawNumber::Undefined => Err(ParseError::IntError(IntErrorKind::Empty)),
+            RawNumber::UnsignedInt(i) => Ok(i as i64),
+            RawNumber::SignedInt(i) => Ok(i),
+            RawNumber::Float(_) => Err(ParseError::IntError(IntErrorKind::InvalidDigit)),
+        }
     }
 }
 
@@ -51,10 +84,36 @@ impl From<u32> for RawNumber {
     }
 }
 
+impl TryFrom<RawNumber> for u32 {
+    type Error = ParseError;
+
+    fn try_from(value: RawNumber) -> Result<Self, Self::Error> {
+        match value {
+            RawNumber::Undefined => Err(ParseError::IntError(IntErrorKind::Empty)),
+            RawNumber::UnsignedInt(i) => Ok(i as u32),
+            RawNumber::SignedInt(i) => Ok(i as u32),
+            RawNumber::Float(_) => Err(ParseError::IntError(IntErrorKind::InvalidDigit)),
+        }
+    }
+}
+
 impl From<u64> for RawNumber {
 
     fn from(value: u64) -> Self {
         Self::UnsignedInt(value)
+    }
+}
+
+impl TryFrom<RawNumber> for u64 {
+    type Error = ParseError;
+
+    fn try_from(value: RawNumber) -> Result<Self, Self::Error> {
+        match value {
+            RawNumber::Undefined => Err(ParseError::IntError(IntErrorKind::Empty)),
+            RawNumber::UnsignedInt(i) => Ok(i),
+            RawNumber::SignedInt(i) => Ok(i as u64),
+            RawNumber::Float(_) => Err(ParseError::IntError(IntErrorKind::InvalidDigit)),
+        }
     }
 }
 
@@ -65,10 +124,36 @@ impl From<f32> for RawNumber {
     }
 }
 
+impl TryFrom<RawNumber> for f32 {
+    type Error = ParseError;
+
+    fn try_from(value: RawNumber) -> Result<Self, Self::Error> {
+        match value {
+            RawNumber::Undefined => Err(ParseError::FloatError),
+            RawNumber::UnsignedInt(i) => Ok(i as f32),
+            RawNumber::SignedInt(i) => Ok(i as f32),
+            RawNumber::Float(f) => Ok(f as f32),
+        }
+    }
+}
+
 impl From<f64> for RawNumber {
 
     fn from(value: f64) -> Self {
         Self::Float(value)
+    }
+}
+
+impl TryFrom<RawNumber> for f64 {
+    type Error = ParseError;
+
+    fn try_from(value: RawNumber) -> Result<Self, Self::Error> {
+        match value {
+            RawNumber::Undefined => Err(ParseError::FloatError),
+            RawNumber::UnsignedInt(i) => Ok(i as f64),
+            RawNumber::SignedInt(i) => Ok(i as f64),
+            RawNumber::Float(f) => Ok(f),
+        }
     }
 }
 
@@ -79,10 +164,36 @@ impl From<isize> for RawNumber {
     }
 }
 
+impl TryFrom<RawNumber> for isize {
+    type Error = ParseError;
+
+    fn try_from(value: RawNumber) -> Result<Self, Self::Error> {
+        match value {
+            RawNumber::Undefined => Err(ParseError::IntError(IntErrorKind::Empty)),
+            RawNumber::UnsignedInt(i) => Ok(i as isize),
+            RawNumber::SignedInt(i) => Ok(i as isize),
+            RawNumber::Float(_) => Err(ParseError::IntError(IntErrorKind::InvalidDigit)),
+        }
+    }
+}
+
 impl From<usize> for RawNumber {
 
     fn from(value: usize) -> Self {
         Self::UnsignedInt(value as u64)
+    }
+}
+
+impl TryFrom<RawNumber> for usize {
+    type Error = ParseError;
+
+    fn try_from(value: RawNumber) -> Result<Self, Self::Error> {
+        match value {
+            RawNumber::Undefined => Err(ParseError::IntError(IntErrorKind::Empty)),
+            RawNumber::UnsignedInt(i) => Ok(i as usize),
+            RawNumber::SignedInt(i) => Ok(i as usize),
+            RawNumber::Float(_) => Err(ParseError::IntError(IntErrorKind::InvalidDigit)),
+        }
     }
 }
 
@@ -105,6 +216,21 @@ impl From<serde_json::Number> for RawNumber {
 impl From<i32> for RawValue {
     fn from(value: i32) -> Self {
         Self::Number(RawNumber::SignedInt(value as i64))
+    }
+}
+
+impl TryFrom<RawValue> for i32 {
+    type Error = ParseError;
+
+    fn try_from(value: RawValue) -> Result<Self, Self::Error> {
+        match value {
+            RawValue::Null => Err(ParseError::IntError(IntErrorKind::Empty)),
+            RawValue::Text(s) => s.parse::<i32>().map_err(|e| ParseError::IntError(e.kind().clone())),
+            RawValue::Number(_) => {}
+            RawValue::Bool(_) => {}
+            RawValue::Object(_) => {}
+            RawValue::Array(_) => {}
+        }
     }
 }
 
