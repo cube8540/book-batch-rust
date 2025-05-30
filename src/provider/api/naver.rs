@@ -1,4 +1,4 @@
-use crate::item::{Book, BookBuilder, Raw, Site};
+use crate::item::{Book, BookBuilder, Raw, RawDataKind, RawKeyDict, Site};
 use crate::provider;
 use crate::provider::api::{ClientError, Request, Response};
 use serde::Deserialize;
@@ -98,6 +98,14 @@ impl Item {
         }
         builder
     }
+}
+
+pub fn load_raw_key_dict() -> RawKeyDict {
+    RawKeyDict::from([
+        (RawDataKind::Title, "title".to_owned()),
+        (RawDataKind::SalePrice, "discount".to_owned()),
+        (RawDataKind::Description, "description".to_owned()),
+    ])
 }
 
 #[derive(Clone)]

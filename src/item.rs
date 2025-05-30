@@ -1,5 +1,6 @@
 pub mod repo;
-mod raw_impl;
+pub mod raw_impl;
+pub mod raw_utils;
 
 use regex::Regex;
 use std::cell::RefCell;
@@ -136,6 +137,10 @@ impl Series {
 
     pub fn vec(&self) -> &Option<Vec<f32>> {
         &self.vec
+    }
+
+    pub fn set_vec(&mut self, vec: Vec<f32>) {
+        self.vec = Some(vec);
     }
 
     pub fn registered_at(&self) -> Option<chrono::NaiveDateTime> {
@@ -303,6 +308,10 @@ impl Book {
     pub fn series_id(&self) -> Option<u64> {
         self.series_id
     }
+    
+    pub fn set_series_id(&mut self, series_id: u64) {
+        self.series_id = Some(series_id);
+    }
 
     pub fn title(&self) -> &str {
         &self.title
@@ -408,6 +417,41 @@ impl AsRef<Book> for Book {
         self
     }
 }
+
+/// 도서의 원본 데이터 종류
+///
+/// # Description
+/// 각 사이트에서 얻어온 원본 데이터중 어플리케이션에서 사용할 데이터의 목록을 나열한 열거형 구조체
+///
+/// # Note
+/// 이곳에 나열된 데이터를 반드시 얻어와야 하는 것은 아니며 등록되지 않았다고 가져오지 않아야 하는 것은 아니다.
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub enum RawDataKind {
+
+    /// 판매처에서 등록한 상품명 (도서명)
+    Title,
+
+    /// 판매처에서 등록한 도서가 속한 시리즈 아이디
+    SeriesID,
+
+    /// 판매가
+    SalePrice,
+
+    /// 출판사에서 제공하는 도서의 상세 정보
+    Description,
+
+    /// 현재 도서가 속한 시리즈의 다른 도서 리스트
+    SeriesList
+}
+
+/// 원본 데이터 종류키 사전
+///
+/// # Description
+/// 원본 데이터를 어떤 키로 저장하였는지를 나타내는 사전
+pub type RawKeyDict = HashMap<RawDataKind, String>;
+
+/// 각 사이트별 원본 데이터 종류키 사전
+pub type SiteRawKeyDict = HashMap<Site, RawKeyDict>;
 
 /// Book 빌더
 #[derive(Debug, Clone, Eq, PartialEq)]

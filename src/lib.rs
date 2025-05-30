@@ -26,7 +26,9 @@ pub enum JobName {
     ALADIN,
     NAVER,
     NLGO,
-    KYOBO
+    KYOBO,
+
+    SERIES
 }
 
 impl From<&str> for JobName {
@@ -36,6 +38,7 @@ impl From<&str> for JobName {
             "naver" => JobName::NAVER,
             "nlgo" => JobName::NLGO,
             "kyobo" => JobName::KYOBO,
+            "series" => JobName::SERIES,
             _ => panic!("Invalid job name: {}", s),
         }
     }
@@ -57,6 +60,7 @@ pub struct Argument {
     /// - `NAVER`: 네이버 도서 API를 이용한 도서 데이터 수집
     /// - `ALADIN`: 알라딘 API를 이용한 도서 데이터 수집
     /// - `KYOBO`: 교보문고 파싱을 통한 도서 데이터 수집
+    /// - `SERIES`: 시리즈가 연결되지 않은 도서들의 적잘한 시리즈를 찾아 연결
     #[arg(short, long)]
     pub job: String,
 

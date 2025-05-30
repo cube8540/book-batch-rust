@@ -1,5 +1,5 @@
 use book_batch_rust::item::repo::{ComposeBookRepository, DieselFilterRepository, DieselPublisherRepository};
-use book_batch_rust::item::{SharedBookRepository, SharedFilterRepository, SharedPublisherRepository};
+use book_batch_rust::item::{SharedBookRepository, SharedFilterRepository, SharedPublisherRepository, SharedSeriesRepository};
 use book_batch_rust::provider::api::{aladin, naver, nlgo};
 use book_batch_rust::provider::html::kyobo;
 use book_batch_rust::{batch, command_to_parameter, configs, JobName};
@@ -47,6 +47,7 @@ fn main() {
                 book_repo.clone(),
             )
         }
+        _ => panic!("Invalid job name"),
     };
     
     job.run(&parameter).expect("Failed run job");

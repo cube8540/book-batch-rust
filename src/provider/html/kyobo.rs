@@ -1,7 +1,7 @@
 pub mod chrome;
 mod utils;
 
-use crate::item::{Book, BookBuilder, Raw, RawValue, Site};
+use crate::item::{Book, BookBuilder, Raw, RawDataKind, RawKeyDict, RawValue, Site};
 use crate::provider::html;
 use crate::provider::html::ParsingError;
 use reqwest::cookie::Jar;
@@ -211,4 +211,13 @@ fn html_to_book(document: &Html) -> Result<BookBuilder, ParsingError> {
         .add_original(Site::KyoboBook, origin_data);
 
     Ok(builder)
+}
+
+pub fn load_raw_key_dict() -> RawKeyDict {
+    RawKeyDict::from([
+        (RawDataKind::Title, "title".to_owned()),
+        (RawDataKind::SalePrice, "sale_price".to_owned()),
+        (RawDataKind::Description, "prod_description".to_owned()),
+        (RawDataKind::SeriesList, "series".to_owned()),
+    ])
 }

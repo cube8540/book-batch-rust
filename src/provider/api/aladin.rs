@@ -1,4 +1,4 @@
-use crate::item::{BookBuilder, Raw, Site};
+use crate::item::{BookBuilder, Raw, RawDataKind, RawKeyDict, Site};
 use crate::provider;
 use crate::provider::api::{ClientError, Request};
 use chrono::NaiveDate;
@@ -126,6 +126,14 @@ impl BookItem {
         }
         builder
     }
+}
+
+pub fn load_raw_key_dict() -> RawKeyDict {
+    RawKeyDict::from([
+        (RawDataKind::Title, "title".to_owned()),
+        (RawDataKind::SalePrice, "salePrice".to_owned()),
+        (RawDataKind::Description, "description".to_owned()),
+    ])
 }
 
 /// 알라딘 API 클라이언트

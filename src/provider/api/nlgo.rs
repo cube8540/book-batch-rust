@@ -1,4 +1,4 @@
-use crate::item::{Book, BookBuilder, Raw, Site};
+use crate::item::{Book, BookBuilder, Raw, RawDataKind, RawKeyDict, Site};
 use crate::provider;
 use crate::provider::api::{ClientError, Request};
 use serde::Deserialize;
@@ -100,6 +100,13 @@ impl Doc {
 
         builder
     }
+}
+
+pub fn load_raw_key_dict() -> RawKeyDict {
+    RawKeyDict::from([
+        (RawDataKind::Title, "title".to_owned()),
+        (RawDataKind::SeriesID, "set_isbn".to_owned()),
+    ])
 }
 
 /// API 응답 구조체로 검색 결과 메타데이터와 도서 정보 목록 포함
