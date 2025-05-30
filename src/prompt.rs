@@ -1,16 +1,28 @@
+pub mod bridge;
+
+use serde::{Deserialize, Serialize};
 use std::fmt::{Display, Formatter};
 use std::rc::Rc;
 
 /// 프롬프트 사용 중 발생한 에러 열거
 #[derive(Debug)]
 pub enum Error {
-    MissingRequiredParameter(String)
+    /// LLM과 연동 중 에러가 발생함
+    ConnectFailed(String),
+
+    /// 필수 파라미터 누락
+    MissingRequiredParameter(String),
+
+    /// LLM 응답 파싱중 에러가 발생함
+    ResponseParsingFailed(String),
 }
 
 impl Display for Error {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Error::MissingRequiredParameter(s) => write!(f, "Missing required parameter: {}", s),
+            Error::ConnectFailed(s) => write!(f, "Failed to connect to LLM: {}", s),
+            Error::ResponseParsingFailed(s) => write!(f, "Failed to parse response: {}", s),
         }
     }
 }
@@ -19,6 +31,7 @@ impl Display for Error {
 ///
 /// # Description
 /// 전달 받은 도서 제목에서 불필요한 정보를 제거하고 표준화된 형태로 변환한 결과를 제공한다.
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Normalized {
     /// 원본 도서 제목 (정규화 이전의 입력값)
     pub original: String,
@@ -35,6 +48,7 @@ pub struct Normalized {
 /// # Description
 /// 도서 제목 정규화 요청 시 참고할 판매처별 정보를 포함한다.
 /// 이 정보들은 더 정확한 정규화를 위해 참고로 사용된다.
+#[derive(Debug, Serialize, Deserialize)]
 pub struct NormalizeRequestSaleInfo {
 
     /// 판매 사이트
@@ -74,6 +88,7 @@ impl NormalizeRequestSaleInfo {
 ///
 /// # Description
 /// 정규화 하고자 하는 도서명과 참고할 수 있는 그 도서의 판매처별 도서 정보를 포함한다.
+#[derive(Debug, Serialize, Deserialize)]
 pub struct NormalizeRequest {
 
     /// 정규화 하고자 하는 도서명
@@ -121,11 +136,11 @@ pub trait Prompt {
     ///
     /// # Example
     /// ```
-    /// let texts = ["텍스트 1", "텍스트 2"];
+    /// let texts = ["텍스트 1".to_owned(), "텍스트 2".to_owned()];
     /// let embeddings = promp.embedding(&texts);
     ///
     /// // `텍스트 1`의 임베딩 백터
     /// let first_embedding = embeddings[0];
     /// ```
-    fn embedding(&self, request: &[&str]) -> Result<Vec<Vec<f32>>, Error>;
+    fn embedding(&self, request: &[String]) -> Result<Vec<Vec<f32>>, Error>;
 }

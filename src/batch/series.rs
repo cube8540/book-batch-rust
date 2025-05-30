@@ -132,7 +132,7 @@ impl SeriesMappingProcessor {
         let normalized = self.prompt.normalize(&request)
             .map_err(|e| SeriesProcessError::FailedTitleNormalize(e.to_string()))?;
 
-        let embedding = self.prompt.embedding(&[normalized.title.as_str()])
+        let embedding = self.prompt.embedding(&[normalized.title.clone()])
             .map_err(|e| SeriesProcessError::FailedTitleEmbedding(e.to_string()))?;
         let embedding = embedding.into_iter().next().unwrap();
 
