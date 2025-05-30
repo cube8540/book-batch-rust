@@ -1,11 +1,11 @@
 use book_batch_rust::item::repo::{ComposeBookRepository, DieselFilterRepository, DieselPublisherRepository, DieselSeriesRepository};
 use book_batch_rust::item::{SharedBookRepository, SharedFilterRepository, SharedPublisherRepository, SharedSeriesRepository};
+use book_batch_rust::prompt::bridge::{BridgeClient, BridgeServer};
+use book_batch_rust::prompt::SharedPrompt;
 use book_batch_rust::provider::api::{aladin, naver, nlgo};
 use book_batch_rust::provider::html::kyobo;
 use book_batch_rust::{batch, command_to_parameter, configs, JobName};
 use std::rc::Rc;
-use book_batch_rust::prompt::bridge::{BridgeClient, BridgeServer};
-use book_batch_rust::prompt::SharedPrompt;
 
 fn main() {
     configs::load_dotenv();
@@ -56,6 +56,9 @@ fn main() {
         JobName::SERIES => {
             let bridge_server = BridgeServer::new_with_env();
 
+            let book_repo = ComposeBookRepository::new(connection.clone(), mongo_client.clone(), true, false, false);
+            let book_repo = SharedBookRepository::new(Box::new(book_repo));
+            
             let series_repo = SharedSeriesRepository::new(Box::new(DieselSeriesRepository::new(connection.clone())));
             let prompt = SharedPrompt::new(Box::new(BridgeClient::new(bridge_server)));
 

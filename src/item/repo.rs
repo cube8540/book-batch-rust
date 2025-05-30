@@ -66,15 +66,31 @@ pub struct ComposeBookRepository {
     book_store: BookPgStore,
     origin_store: BookOriginDataStore,
 
-    with_origin: bool,
+    read_with_origin: bool,
+    insert_with_origin: bool,
+    update_with_origin: bool,
 }
 
 impl ComposeBookRepository {
+
+
+    pub fn new(db_pool: Pool<ConnectionManager<PgConnection>>, mongo_client: Client, read_with_origin: bool, insert_with_origin: bool, update_with_origin: bool) -> Self {
+        Self { 
+            book_store: BookPgStore::new(db_pool),
+            origin_store: BookOriginDataStore::new(mongo_client),
+            read_with_origin,
+            insert_with_origin,
+            update_with_origin
+        }
+    }
+
     pub fn without_origin(db_pool: Pool<ConnectionManager<PgConnection>>, mongo_client: Client) -> Self {
         Self {
             book_store: BookPgStore::new(db_pool),
             origin_store: BookOriginDataStore::new(mongo_client),
-            with_origin: false,
+            read_with_origin: false,
+            insert_with_origin: false,
+            update_with_origin: false,
         }
     }
 
@@ -82,7 +98,9 @@ impl ComposeBookRepository {
         Self {
             book_store: BookPgStore::new(db_pool),
             origin_store: BookOriginDataStore::new(mongo_client),
-            with_origin: true,
+            read_with_origin: true,
+            insert_with_origin: true,
+            update_with_origin: true,
         }
     }
 }
@@ -112,7 +130,7 @@ impl BookRepository for ComposeBookRepository {
             .find_by_pub_between(from, to)
             .unwrap_or_else(|e| logging_with_default_vec(e));
 
-        let mut originals = match self.with_origin {
+        let mut originals = match self.read_with_origin {
             true => self.load_original_data(&book_entities),
             false => HashMap::new(),
         };
@@ -127,7 +145,7 @@ impl BookRepository for ComposeBookRepository {
             .find_by_isbn(isbn)
             .unwrap_or_else(|e| logging_with_default_vec(e));
 
-        let mut originals = match self.with_origin {
+        let mut originals = match self.read_with_origin {
             true => self.load_original_data(&book_entities),
             false => HashMap::new(),
         };
@@ -152,7 +170,7 @@ impl BookRepository for ComposeBookRepository {
             return vec![];
         }
 
-        if self.with_origin {
+        if self.insert_with_origin {
             saved_book_entities.iter()
                 .filter_map(|e| {
                     isbn_with_origin.get(&e.isbn).map(|o| (e.id, o))
@@ -181,7 +199,7 @@ impl BookRepository for ComposeBookRepository {
         let mut updated_count = self.book_store.update_book(book)
             .unwrap_or_else(|e| logging_with_default_usize(e));
 
-        if self.with_origin {
+        if self.update_with_origin {
             let book_id = book.id as i64;
             for (site, _) in book.originals.iter() {
                 _ = self.origin_store.delete_site(book_id, site)
@@ -199,7 +217,7 @@ impl BookRepository for ComposeBookRepository {
             .find_series_unorganized(limit)
             .unwrap_or_else(|e| logging_with_default_vec(e));
 
-        let mut originals = match self.with_origin {
+        let mut originals = match self.read_with_origin {
             true => self.load_original_data(&book_entities),
             false => HashMap::new(),
         };
@@ -214,7 +232,7 @@ impl BookRepository for ComposeBookRepository {
             .find_by_series_id(series_id)
             .unwrap_or_else(|e| logging_with_default_vec(e));
 
-        let mut originals = match self.with_origin {
+        let mut originals = match self.read_with_origin {
             true => self.load_original_data(&book_entities),
             false => HashMap::new(),
         };
