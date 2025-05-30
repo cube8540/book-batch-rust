@@ -1,9 +1,11 @@
-use book_batch_rust::item::repo::{ComposeBookRepository, DieselFilterRepository, DieselPublisherRepository};
+use book_batch_rust::item::repo::{ComposeBookRepository, DieselFilterRepository, DieselPublisherRepository, DieselSeriesRepository};
 use book_batch_rust::item::{SharedBookRepository, SharedFilterRepository, SharedPublisherRepository, SharedSeriesRepository};
 use book_batch_rust::provider::api::{aladin, naver, nlgo};
 use book_batch_rust::provider::html::kyobo;
 use book_batch_rust::{batch, command_to_parameter, configs, JobName};
 use std::rc::Rc;
+use book_batch_rust::prompt::bridge::{BridgeClient, BridgeServer};
+use book_batch_rust::prompt::SharedPrompt;
 
 fn main() {
     configs::load_dotenv();
@@ -17,38 +19,52 @@ fn main() {
     let filter_repo = SharedFilterRepository::new(Box::new(DieselFilterRepository::new(connection.clone())));
 
     let (job, parameter) = command_to_parameter();
-    let job = match job {
+    match job {
         JobName::ALADIN => {
-            batch::book::aladin::create_job(
+            let job = batch::book::aladin::create_job(
                 Rc::new(aladin::Client::new_with_env().unwrap()),
                 pub_repo.clone(),
                 book_repo.clone(),
                 filter_repo.clone(),
-            )
+            );
+            job.run(&parameter).expect("Job running failed");
         }
         JobName::NAVER => {
-            batch::book::naver::create_job(
+            let job = batch::book::naver::create_job(
                 Rc::new(naver::Client::new_with_env().unwrap()),
                 book_repo.clone(),
-            )
+            );
+            job.run(&parameter).expect("Job running failed");
         }
         JobName::NLGO => {
-            batch::book::nlgo::create_job(
+            let job = batch::book::nlgo::create_job(
                 Rc::new(nlgo::Client::new_with_env().unwrap()),
                 pub_repo.clone(),
                 book_repo.clone(),
                 filter_repo.clone(),
-            )
+            );
+            job.run(&parameter).expect("Job running failed");
         }
         JobName::KYOBO => {
-            batch::book::kyobo::create_job(
+            let job = batch::book::kyobo::create_job(
                 Rc::new(kyobo::Client::new(kyobo::chrome::new_provider().unwrap())),
                 Rc::new(kyobo::KyoboAPI::new()),
                 book_repo.clone(),
-            )
+            );
+            job.run(&parameter).expect("Job running failed");
         }
-        _ => panic!("Invalid job name"),
+        JobName::SERIES => {
+            let bridge_server = BridgeServer::new_with_env();
+
+            let series_repo = SharedSeriesRepository::new(Box::new(DieselSeriesRepository::new(connection.clone())));
+            let prompt = SharedPrompt::new(Box::new(BridgeClient::new(bridge_server)));
+
+            let job = batch::series::create_job(
+                book_repo.clone(),
+                series_repo.clone(),
+                prompt.clone(),
+            );
+            job.run(&parameter).expect("Job running failed");
+        }
     };
-    
-    job.run(&parameter).expect("Failed run job");
 }

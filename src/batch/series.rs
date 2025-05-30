@@ -1,10 +1,9 @@
-use std::fmt::{Display, Formatter};
-use std::ptr::write;
 use crate::batch::error::{JobProcessFailed, JobReadFailed, JobWriteFailed};
 use crate::batch::{job_builder, Job, JobParameter, Processor, Reader, Writer};
 use crate::item::{raw_utils, Book, Series, SharedBookRepository, SharedSeriesRepository, Site};
 use crate::prompt::{NormalizeRequest, NormalizeRequestSaleInfo, SharedPrompt};
 use crate::provider::api::nlgo;
+use std::fmt::{Display, Formatter};
 
 const DEFAULT_READ_LIMIT: usize = 50;
 const PARAM_NAME_READ_LIMIT: &str = "limit";
@@ -63,6 +62,7 @@ impl Reader for UnorganizedBookReader {
 }
 
 /// 가장 유사한 시리즈와 유사도를 저장하는 구조체
+#[derive(Debug)]
 pub struct MostSimilarSeries {
 
     /// 가장 유사했던 시리즈
@@ -73,6 +73,7 @@ pub struct MostSimilarSeries {
 }
 
 /// 도서의 시리즈 분류 처리 결과
+#[derive(Debug)]
 pub enum SeriesMappingResult {
 
     /// 새로운 시리즈를 생성하고 도서와 연결 해야함을 의미한다.
@@ -230,7 +231,7 @@ impl Writer for SeriesWriter {
             match item {
                 SeriesMappingResult::Exists(mut book, exists_series) => {
                     book.set_series_id(exists_series.id());
-                    self.book_repo.save_books(&[book]);
+                    self.book_repo.update_book(&book);
                 }
                 SeriesMappingResult::New(mut book, new_series, _) => {
                     let insert_series = vec![new_series];
@@ -244,7 +245,7 @@ impl Writer for SeriesWriter {
                     }
 
                     book.set_series_id(inserted_series.unwrap().id());
-                    self.book_repo.save_books(&[book]);
+                    self.book_repo.update_book(&book);
                 }
             }
         }
