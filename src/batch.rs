@@ -113,7 +113,7 @@ pub trait Processor {
     fn do_process(&self, item: Self::In) -> Result<Self::Out, JobProcessFailed<Self::In>>;
 }
 
-/// 입력 타입과 출력 타입이 동일한프로세서
+/// 입력 타입과 출력 타입이 동일한 프로세서
 ///
 /// # Description
 /// `Job`을 구성 시 `Processor`가 필수 컴포넌트지만 데이터 변환이 불필요한 경우 이 프로세서를 사용하여

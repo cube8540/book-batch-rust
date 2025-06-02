@@ -1,7 +1,7 @@
+use crate::batch::JobParameter;
+use clap::Parser;
 use std::fmt;
 use std::fmt::Formatter;
-use clap::Parser;
-use crate::batch::JobParameter;
 
 pub mod configs;
 pub mod provider;
@@ -44,6 +44,13 @@ impl From<&str> for JobName {
     }
 }
 
+pub const PARAM_NAME_FROM: &str = "from";
+pub const PARAM_NAME_TO: &str = "to";
+pub const PARAM_NAME_PUBLISHER_ID: &str = "publisher_id";
+
+pub const PARAM_NAME_ISBN: &str = "isbn";
+pub const PARAM_NAME_LIMIT: &str = "limit";
+
 #[derive(Debug, Parser)]
 pub struct Argument {
 
@@ -66,6 +73,12 @@ pub struct Argument {
 
     /// (Optional) 수집할 도서의 출판일 검색 시작 날짜 (YYYY-MM-DD)
     ///
+    /// # Supported Job Names
+    /// - ALADIN
+    /// - NAVER
+    /// - NLGO
+    /// - KYOBO
+    ///
     /// # Example
     /// ```text
     /// $ cargo run -- --from 2025-01-01
@@ -75,6 +88,12 @@ pub struct Argument {
     pub from: Option<String>,
 
     /// (Optional) 수집할 도서의 출판일 검색 종료 날짜 (YYYY-MM-DD)
+    ///
+    /// # Supported Job Names
+    /// - ALADIN
+    /// - NAVER
+    /// - NLGO
+    /// - KYOBO
     ///
     /// # Example
     /// ```text
@@ -87,6 +106,12 @@ pub struct Argument {
     /// (Optional) 검색할 도서의 숫자로 이루어진 출판사 아이디 리스트
     /// 각 출판사 아이디는 공백(" ")으로 구분 한다.
     ///
+    /// # Supported Job Names
+    /// - ALADIN
+    /// - NAVER
+    /// - NLGO
+    /// - KYOBO
+    ///
     /// # Example
     /// ```text
     /// $ cargo run -- --publisher-id 20050726 20110708 20111223
@@ -98,10 +123,52 @@ pub struct Argument {
     ///
     /// let argue = Argument::parse();
     /// // [20050726, 20110708, 20111223]
-    /// println!("{:?}", argue.publisher_id)
+    /// println!("{:?}", argue.publisher_id.unwrap())
     /// ```
     #[arg(short, long, num_args = 1..)]
     pub publisher_id: Option<Vec<usize>>,
+
+    /// (Optional) 처리하고자 하는 도서의 ISBN
+    /// 각 ISBN은 공백(" ")으로 구분 한다.
+    ///
+    /// # Supported Job Names
+    /// - SERIES
+    ///
+    /// # Example
+    /// ```text
+    /// $ cargo run -- --isbn 9788966261000 9788966261017
+    /// $ cargo run -- -i 9788966261000 9788966261017
+    /// ```
+    /// ```rust
+    /// use clap::Parser;
+    /// use book_batch_rust::Argument;
+    ///
+    /// let argue = Argument::parse();
+    /// // [9788966261000, 9788966261017]
+    /// println!("{:?}", argue.isbn.unwrap())
+    /// ```
+    #[arg(short, long, num_args = 1..)]
+    pub isbn: Option<Vec<String>>,
+
+    /// (Optional) 잡에서 한번에 처리할 데이터의 개수
+    ///
+    /// # Supported Job Names
+    /// - SERIES
+    ///
+    /// # Example
+    /// ```text
+    /// $ cargo run -- --limit 100
+    /// $ cargo run -- -l 100
+    /// ```
+    /// ```rust
+    /// use clap::Parser;
+    /// use book_batch_rust::Argument;
+    ///
+    /// let argument = Argument::parse();
+    /// // 100
+    /// println!("{}", argument.limit.unwrap())
+    /// ```
+    pub limit: Option<usize>
 }
 
 impl Argument {
@@ -135,23 +202,23 @@ impl Argument {
 /// # Note
 /// - `from/to`가 입력 되지 않았을 경우 기본값을 사용하며 `from`은 현재일로 부터 -30일, `to`는 현재일로부터 +60일을 시용한다. (총 90일)
 /// - `from`, `to`는 모두 `YYYY-MM-DD` 형식이어야 한다 (ex: 2025-05-01)
-/// - `publisher_id`는 콤마(",")로 연결하여 `String` 타입으로 변환한다.(ex: 20050726 20110708 20111223 -> "20050726,20110708,20111223")
+/// - `publisher_id`, `isbn`은 콤마(",")로 연결하여 `String` 타입으로 변환한다.(ex: 20050726 20110708 20111223 -> "20050726,20110708,20111223")
 pub fn command_to_parameter() -> (JobName, JobParameter) {
     let argument = Argument::parse();
 
     let mut parameter = JobParameter::new();
     if let Some(from) = argument.get_from().as_ref() {
-        parameter.insert("from".to_owned(), from.format("%Y-%m-%d").to_string());
+        parameter.insert(PARAM_NAME_FROM.to_owned(), from.format("%Y-%m-%d").to_string());
     } else {
         let from = default_from_date();
-        parameter.insert("from".to_owned(), from.format("%Y-%m-%d").to_string());
+        parameter.insert(PARAM_NAME_FROM.to_owned(), from.format("%Y-%m-%d").to_string());
     }
 
     if let Some(to) = argument.get_to().as_ref() {
-        parameter.insert("to".to_owned(), to.format("%Y-%m-%d").to_string());
+        parameter.insert(PARAM_NAME_TO.to_owned(), to.format("%Y-%m-%d").to_string());
     } else {
         let to = default_to_date();
-        parameter.insert("to".to_owned(), to.format("%Y-%m-%d").to_string());
+        parameter.insert(PARAM_NAME_TO.to_owned(), to.format("%Y-%m-%d").to_string());
     }
 
     if let Some(publisher_id) = argument.publisher_id.as_ref() {
@@ -160,7 +227,20 @@ pub fn command_to_parameter() -> (JobName, JobParameter) {
             id_str.push_str(&id.to_string());
             id_str.push(',');
         }
-        parameter.insert("publisher_id".to_owned(), id_str);
+        parameter.insert(PARAM_NAME_PUBLISHER_ID.to_owned(), id_str);
+    }
+
+    if let Some(isbn) = argument.isbn.as_ref() {
+        let mut isbn_str = String::new();
+        for isbn in isbn {
+            isbn_str.push_str(&isbn.to_string());
+            isbn_str.push(',');
+        }
+        parameter.insert(PARAM_NAME_ISBN.to_owned(), isbn_str);
+    }
+
+    if let Some(limit) = argument.limit {
+        parameter.insert(PARAM_NAME_LIMIT.to_owned(), limit.to_string());
     }
 
     (argument.get_job(), parameter)

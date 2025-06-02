@@ -6,13 +6,9 @@ pub mod kyobo;
 use crate::batch::error::{JobReadFailed, JobWriteFailed};
 use crate::batch::{Filter, FilterChain, JobParameter, Reader, Writer};
 use crate::item::{Book, BookBuilder, Publisher, SharedBookRepository, SharedFilterRepository, SharedPublisherRepository, Site};
+use crate::{PARAM_NAME_FROM, PARAM_NAME_PUBLISHER_ID, PARAM_NAME_TO};
 use chrono::NaiveDate;
 use std::collections::{HashMap, HashSet};
-
-pub const PARAM_NAME_PUBLISHER: &'static str = "publisher";
-
-pub const PARAM_NAME_FROM_DT: &'static str = "from";
-pub const PARAM_NAME_TO_DT: &'static str = "to";
 
 /// [`JobParameter`]에서 `시작일`과 `종료일`을 얻어 [`NaiveDate`]로 반환한다.
 /// 시작일의 키는 `from_dt` 종료일의 키는 `to_dt`를 사용한다. 시작일과 종료일은 `%Y-%m-%d` 포멧으로 파싱하며
@@ -33,8 +29,8 @@ pub const PARAM_NAME_TO_DT: &'static str = "to";
 /// assert_eq!(to, NaiveDate::from_ymd_opt(2025, 5, 31).unwrap());
 /// ```
 pub fn retrieve_from_to_in_parameter(params: &JobParameter) -> Result<(NaiveDate, NaiveDate), JobReadFailed> {
-    let from_str = params.get(PARAM_NAME_FROM_DT);
-    let to_str = params.get(PARAM_NAME_TO_DT);
+    let from_str = params.get(PARAM_NAME_FROM);
+    let to_str = params.get(PARAM_NAME_TO);
 
     if from_str.is_none() || to_str.is_none() {
         return Err(JobReadFailed::InvalidArguments("from/to is required".to_owned()));
@@ -71,7 +67,7 @@ pub fn retrieve_from_to_in_parameter(params: &JobParameter) -> Result<(NaiveDate
 /// assert_eq!(publisher_id, vec![1,2,3]);
 /// ```
 pub fn retrieve_publisher_id_in_parameter(params: &JobParameter) -> Result<Vec<u64>, JobReadFailed> {
-    let publisher_id = params.get(PARAM_NAME_PUBLISHER);
+    let publisher_id = params.get(PARAM_NAME_PUBLISHER_ID);
 
     if publisher_id.is_none() {
         return Ok(Vec::new());

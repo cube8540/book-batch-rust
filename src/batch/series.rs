@@ -3,10 +3,10 @@ use crate::batch::{job_builder, Job, JobParameter, Processor, Reader, Writer};
 use crate::item::{raw_utils, Book, Series, SharedBookRepository, SharedSeriesRepository, Site};
 use crate::prompt::{NormalizeRequest, NormalizeRequestSaleInfo, SharedPrompt};
 use crate::provider::api::nlgo;
+use crate::PARAM_NAME_LIMIT;
 use std::fmt::{Display, Formatter};
 
 const DEFAULT_READ_LIMIT: usize = 50;
-const PARAM_NAME_READ_LIMIT: &str = "limit";
 
 /// 기준 유사도 기본값
 const DEFAULT_SIMILARITY_SCORE: f64 = 0.90;
@@ -49,10 +49,10 @@ impl Reader for UnorganizedBookReader {
     type Item = Book;
 
     fn do_read(&self, params: &JobParameter) -> Result<Vec<Self::Item>, JobReadFailed> {
-        let limit = params.get(PARAM_NAME_READ_LIMIT)
+        let limit = params.get(PARAM_NAME_LIMIT)
             .map(|s| {
                 s.parse::<usize>()
-                    .map_err(|e| JobReadFailed::InvalidArguments(format!("{}: {} is not a number", PARAM_NAME_READ_LIMIT, e)))
+                    .map_err(|e| JobReadFailed::InvalidArguments(format!("{}: {} is not a number", PARAM_NAME_LIMIT, e)))
             })
             .unwrap_or_else(|| Ok(DEFAULT_READ_LIMIT))?;
 
