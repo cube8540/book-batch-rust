@@ -6,7 +6,7 @@ pub mod kyobo;
 use crate::batch::error::{JobReadFailed, JobWriteFailed};
 use crate::batch::{Filter, FilterChain, JobParameter, Reader, Writer};
 use crate::item::{Book, BookBuilder, Publisher, SharedBookRepository, SharedFilterRepository, SharedPublisherRepository, Site};
-use crate::{PARAM_NAME_FROM, PARAM_NAME_PUBLISHER_ID, PARAM_NAME_TO};
+use crate::{PARAM_NAME_FROM, PARAM_NAME_ISBN, PARAM_NAME_PUBLISHER_ID, PARAM_NAME_TO};
 use chrono::NaiveDate;
 use std::collections::{HashMap, HashSet};
 
@@ -85,6 +85,19 @@ pub fn retrieve_publisher_id_in_parameter(params: &JobParameter) -> Result<Vec<u
         Ok(ids) => Ok(ids),
         Err(err) => Err(err),
     }
+}
+
+pub fn retrieve_isbn_in_parameter(params: &JobParameter) -> Result<Vec<String>, JobReadFailed> {
+    let isbn = params.get(PARAM_NAME_ISBN);
+    if isbn.is_none() {
+        return Ok(Vec::new());
+    }
+
+    let isbn_str = isbn.unwrap().split(',')
+        .map(|s| s.trim().to_owned())
+        .collect();
+
+    Ok(isbn_str)
 }
 
 pub trait ByPublisher: Reader<Item=Book> {

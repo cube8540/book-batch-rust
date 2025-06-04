@@ -73,7 +73,7 @@ pub struct Argument {
 
     /// (Optional) 수집할 도서의 출판일 검색 시작 날짜 (YYYY-MM-DD)
     ///
-    /// # Supported Job Names
+    /// # Job Names
     /// - ALADIN
     /// - NAVER
     /// - NLGO
@@ -89,7 +89,7 @@ pub struct Argument {
 
     /// (Optional) 수집할 도서의 출판일 검색 종료 날짜 (YYYY-MM-DD)
     ///
-    /// # Supported Job Names
+    /// # Job Names
     /// - ALADIN
     /// - NAVER
     /// - NLGO
@@ -106,7 +106,7 @@ pub struct Argument {
     /// (Optional) 검색할 도서의 숫자로 이루어진 출판사 아이디 리스트
     /// 각 출판사 아이디는 공백(" ")으로 구분 한다.
     ///
-    /// # Supported Job Names
+    /// # Job Names
     /// - ALADIN
     /// - NAVER
     /// - NLGO
@@ -131,8 +131,9 @@ pub struct Argument {
     /// (Optional) 처리하고자 하는 도서의 ISBN
     /// 각 ISBN은 공백(" ")으로 구분 한다.
     ///
-    /// # Supported Job Names
-    /// - SERIES
+    /// # Job Names
+    /// - KYOBO: 수집할 도서 ISBN
+    /// - SERIES: 시리즈를 분류할 대상 ISBN
     ///
     /// # Example
     /// ```text
