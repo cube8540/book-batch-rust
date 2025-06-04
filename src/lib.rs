@@ -223,20 +223,15 @@ pub fn command_to_parameter() -> (JobName, JobParameter) {
     }
 
     if let Some(publisher_id) = argument.publisher_id.as_ref() {
-        let mut id_str = String::new();
-        for id in publisher_id {
-            id_str.push_str(&id.to_string());
-            id_str.push(',');
-        }
+        let id_str = publisher_id.iter()
+            .map(|&i| i.to_string())
+            .collect::<Vec<String>>()
+            .join(",");
         parameter.insert(PARAM_NAME_PUBLISHER_ID.to_owned(), id_str);
     }
 
     if let Some(isbn) = argument.isbn.as_ref() {
-        let mut isbn_str = String::new();
-        for isbn in isbn {
-            isbn_str.push_str(&isbn.to_string());
-            isbn_str.push(',');
-        }
+        let isbn_str = isbn.join(",");
         parameter.insert(PARAM_NAME_ISBN.to_owned(), isbn_str);
     }
 
