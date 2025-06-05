@@ -1,7 +1,7 @@
 use crate::batch::error::{JobProcessFailed, JobReadFailed, JobWriteFailed};
 use crate::batch::{job_builder, Job, JobParameter, Processor, Reader, Writer};
-use crate::item::{raw_utils, Book, Series, SharedBookRepository, SharedSeriesRepository, Site};
-use crate::prompt::{NormalizeRequest, NormalizeRequestSaleInfo, SharedPrompt};
+use crate::item::{raw_utils, Book, RawDataKind, Series, SharedBookRepository, SharedSeriesRepository, Site};
+use crate::prompt::{NormalizeRequest, NormalizeRequestSaleInfo, SeriesSimilarRequest, SeriesSimilarRequestBookInfo, SharedPrompt};
 use crate::provider::api::nlgo;
 use crate::PARAM_NAME_LIMIT;
 use std::fmt::{Display, Formatter};
@@ -10,6 +10,9 @@ const DEFAULT_READ_LIMIT: usize = 50;
 
 /// 기준 유사도 기본값
 const DEFAULT_SIMILARITY_SCORE: f64 = 0.90;
+
+/// 시리즈 소속 여부 재검토 기준 유사도 기본값
+const DEFAULT_SERIES_SIMILARITY_SCORE: f64 = 0.45;
 
 /// 시리즈 처리 도중 발생하는 에러 열거
 #[derive(Debug)]
@@ -208,6 +211,81 @@ impl Processor for SeriesMappingProcessor {
     }
 }
 
+/// 시리즈 소속 여부 검증 프로세서
+///
+/// # Description
+/// 신간 도서가 기존 시리즈에 속하는지 LLM을 활용하여 재검증 하는 프로세서
+/// 단순 제목 비교로는 시리즈 판단이 어려운 경우를 위한 최종 검증 단계로 활용한다.
+///
+/// # How to work
+/// 1. 이전 단계에서 새 시리즈로 분류된 도서([`SeriesMappingResult::New`])를 대상으로 한다.
+/// 2. 해당 도서와 가장 유사했던 기존 시리즈의 도서 목록을 함께 LLM에 전달한다.
+/// 3. LLM이 신간 도서의 시리즈 소속 여부를 최종 판단한다.
+///
+/// # Why
+/// 동일한 도서라도 판매처마다 제목을 다르게 등록할 수 있어 정규화 후에도 데이터베이스에 기록된 시리즈명과 차이가 있을 수 있어
+/// 유사도 검사만으로는 한계가 있다. 이 때 LLM을 이용하여 도서 목록 전체를 검토해 시리즈 소속 여부를 비교적 정확하게 판단한다.
+pub struct BelongToSeriesProcessor {
+    book_repo: SharedBookRepository,
+    prompt: SharedPrompt,
+
+    /// 기준 유사도
+    ///
+    /// # Description
+    /// 시리즈 소속 여부를 재검토할지 여부를 확인하는 기준 유사도로 이전 단계에서 새 시리즈 생성이 필요한 도서로 분류 되었지만 가장 높은 유사도를
+    /// 가진 시리즈의 유사도가 이 값을 넘었을 때 해당 시리즈의 도서 목록과 함께 LLM에 입력으로 사용하여 시리즈에 속하는지 재검토 한다.
+    ///
+    /// # Note
+    /// 0 ~ 1 사이의 값을 사용한다.
+    pub similar_score: f64,
+}
+
+impl BelongToSeriesProcessor {
+    pub fn new(book_repo: SharedBookRepository, prompt: SharedPrompt) -> Self {
+        Self { book_repo, prompt, similar_score: DEFAULT_SERIES_SIMILARITY_SCORE }
+    }
+}
+
+impl Processor for BelongToSeriesProcessor {
+    type In = SeriesMappingResult;
+    type Out = SeriesMappingResult;
+
+    fn do_process(&self, item: Self::In) -> Result<Self::Out, JobProcessFailed<Self::In>> {
+        match item {
+            SeriesMappingResult::New(book, new, most_similar) => {
+                if most_similar.is_none() {
+                    return Ok(SeriesMappingResult::New(book, new, None));
+                }
+                let most_similar = most_similar.unwrap();
+                if most_similar.score < self.similar_score {
+                    return Ok(SeriesMappingResult::New(book, new, Some(most_similar)));
+                }
+
+                let most_similar_series_books = self.book_repo.find_by_series_id(most_similar.series.id());
+                let series_books = most_similar_series_books.iter()
+                    .map(convert_series_similar_request_book_info)
+                    .collect();
+                let new_book = convert_series_similar_request_book_info(&book);
+
+                let request = SeriesSimilarRequest { new: new_book, series: series_books, };
+                let response = self.prompt.series_similar(&request);
+
+                if response.is_err() {
+                    let err = response.unwrap_err();
+                    return Err(JobProcessFailed::new(SeriesMappingResult::New(book, new, Some(most_similar)), err.to_string()));
+                }
+
+                if response.unwrap() {
+                    Ok(SeriesMappingResult::Exists(book, most_similar.series))
+                } else {
+                    Ok(SeriesMappingResult::New(book, new, Some(most_similar)))
+                }
+            }
+            _ => Ok(item)
+        }
+    }
+}
+
 /// 시리즈를 저장하는 객체
 ///
 /// # Description
@@ -295,4 +373,21 @@ fn convert_book_to_normalize_request(book: &Book) -> NormalizeRequest {
     }
 
     request
+}
+
+fn convert_series_similar_request_book_info(book: &Book) -> SeriesSimilarRequestBookInfo {
+    let author = book.originals().iter()
+        .find_map(|(site, raw)| {
+            let dict = raw_utils::load_site_dict(site);
+            dict.get(&RawDataKind::Author)
+                .map(|k| raw.get(k))
+                .flatten()
+                .map(|v| v.to_string())
+        });
+
+    SeriesSimilarRequestBookInfo {
+        title: book.title().to_owned(),
+        publisher: book.publisher_id(),
+        author,
+    }
 }

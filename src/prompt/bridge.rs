@@ -1,4 +1,4 @@
-use crate::prompt::{Error, NormalizeRequest, Normalized, Prompt};
+use crate::prompt::{Error, NormalizeRequest, Normalized, Prompt, SeriesSimilarRequest};
 use reqwest::{blocking, Url};
 use serde::{Deserialize, Serialize};
 use std::env::var;
@@ -6,6 +6,7 @@ use std::env::var;
 const DEFAULT_BRIDGE_HOST: &str = "http://localhost:5000";
 const DEFAULT_BRIDGE_NORMALIZE_ENDPOINT: &str = "/normalize";
 const DEFAULT_BRIDGE_EMBEDDING_ENDPOINT: &str = "/embedding";
+const DEFAULT_BRIDGE_SERIES_SIMILAR_ENDPOINT: &str = "/series_similar";
 
 const DEFAULT_BRIDGE_TIMEOUT: usize = 30000;
 
@@ -27,7 +28,10 @@ pub struct BridgeServer {
     pub normalize_endpoint: String,
 
     /// 텍스트 임베딩 API의 엔드포인트
-    pub embedding_endpoint: String
+    pub embedding_endpoint: String,
+
+    /// 시리즈 소속 판단 API의 엔드 포인트
+    pub series_similar_endpoint: String
 }
 
 impl BridgeServer {
@@ -36,7 +40,8 @@ impl BridgeServer {
             host: var("BRIDGE_HOST").unwrap_or_else(|_| DEFAULT_BRIDGE_HOST.to_owned()),
             timeout: var("BRIDGE_TIMEOUT").map(|v| v.parse::<usize>().unwrap()).unwrap_or_else(|_| DEFAULT_BRIDGE_TIMEOUT),
             normalize_endpoint: var("BRIDGE_NORMALIZE_ENDPOINT").unwrap_or_else(|_| DEFAULT_BRIDGE_NORMALIZE_ENDPOINT.to_owned()),
-            embedding_endpoint: var("BRIDGE_EMBEDDING_ENDPOINT").unwrap_or_else(|_| DEFAULT_BRIDGE_EMBEDDING_ENDPOINT.to_owned())
+            embedding_endpoint: var("BRIDGE_EMBEDDING_ENDPOINT").unwrap_or_else(|_| DEFAULT_BRIDGE_EMBEDDING_ENDPOINT.to_owned()),
+            series_similar_endpoint: var("BRIDGE_SERIES_SIMILAR_ENDPOINT").unwrap_or_else(|_| DEFAULT_BRIDGE_SERIES_SIMILAR_ENDPOINT.to_owned()),
         }
     }
 }
@@ -69,6 +74,13 @@ struct Embedding {
 #[derive(Debug, Serialize, Deserialize)]
 struct Embedded {
     pub embeddings: Vec<Embedding>,
+}
+
+/// 시리즈 소속 여부 응답 형태
+#[derive(Debug, Serialize, Deserialize)]
+struct SeriesSimilar {
+    pub result: bool,
+    pub reason: Option<String>,
 }
 
 /// 브릿지 API 서버 클라이언트
@@ -133,6 +145,28 @@ impl Prompt for BridgeClient {
             .collect();
 
         Ok(embeddings)
+    }
+
+    fn series_similar(&self, request: &SeriesSimilarRequest) -> Result<bool, Error> {
+        let client = create_blocking_client(&self.server);
+
+        let url = create_request_url(&self.server.host, &self.server.series_similar_endpoint);
+        let body = serde_json::to_string(request)
+            .map_err(|err| Error::ConnectFailed(format!("Failed to serialize request: {}", err)))?;
+        
+        let response = client.post(url)
+            .header("Content-Type", "application/json")
+            .body(body)
+            .send()
+            .map_err(|err| Error::ConnectFailed(format!("Failed to send request: {}", err)))?;
+        
+        let response_text = response.text()
+            .map_err(|err| Error::ResponseParsingFailed(format!("Failed to read response: {}", err)))?;
+        
+        let response = serde_json::from_str::<SeriesSimilar>(&response_text)
+            .map_err(|err| Error::ResponseParsingFailed(format!("Failed to parse response: {}", err)))?;
+        
+        Ok(response.result)
     }
 }
 

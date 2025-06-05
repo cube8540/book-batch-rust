@@ -219,5 +219,6 @@ pub fn load_raw_key_dict() -> RawKeyDict {
         (RawDataKind::SalePrice, "sale_price".to_owned()),
         (RawDataKind::Description, "prod_description".to_owned()),
         (RawDataKind::SeriesList, "series".to_owned()),
+        (RawDataKind::Author, "author".to_owned()),
     ])
 }

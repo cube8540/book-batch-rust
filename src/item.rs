@@ -441,7 +441,10 @@ pub enum RawDataKind {
     Description,
 
     /// 현재 도서가 속한 시리즈의 다른 도서 리스트
-    SeriesList
+    SeriesList,
+
+    /// 도서의 저자
+    Author,
 }
 
 /// 원본 데이터 종류키 사전

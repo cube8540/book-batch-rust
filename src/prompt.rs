@@ -108,6 +108,37 @@ impl NormalizeRequest {
     }
 }
 
+/// 시리즈 소속 여부를 검사할 때 활용할 도서 정보
+///
+/// # Description
+/// 시리즈 소속 확인시 참고할 도서의 상세 정보를 저장한다.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SeriesSimilarRequestBookInfo {
+
+    /// 도서 제목
+    pub title: String,
+
+    /// 출판사 아이디
+    pub publisher: u64,
+
+    /// 도서의 저자
+    pub author: Option<String>,
+}
+
+/// 시리즈 소속 여부 확인 프롬프트 요청 폼
+///
+/// # Description
+/// 기존 시리즈에 속하는 도서 목록과 시리즈에 소속 여부를 확인하고자 하는 신간 정보를 저장한다.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SeriesSimilarRequest {
+
+    /// 소속 여부를 확인하고 싶은 신간 도서 정보
+    pub new: SeriesSimilarRequestBookInfo,
+
+    /// 기존 시리즈의 도서 목록
+    pub series: Vec<SeriesSimilarRequestBookInfo>
+}
+
 /// 같은 프롬프트 객체를 여러곳에서 사용 할 수 있도록 하는 [`Rc`] 형태의 공유 프롬프트 타입
 pub type SharedPrompt = Rc<Box<dyn Prompt>>;
 
@@ -123,7 +154,7 @@ pub trait Prompt {
     /// - `request`: 정규화할 도서 제목과 참고할 판매처 정보를 담은 요청 객체
     ///
     /// # Returns
-    /// - `TitleNormalized`: 정규화된 도서명과 처리 내역을 담은 객체
+    /// - `Normlized`: 정규화된 도서명과 처리 내역을 담은 객체
     fn normalize(&self, request: &NormalizeRequest) -> Result<Normalized, Error>;
 
     /// 입력 받은 텍스트들을 임베딩 한다.
@@ -143,4 +174,13 @@ pub trait Prompt {
     /// let first_embedding = embeddings[0];
     /// ```
     fn embedding(&self, request: &[String]) -> Result<Vec<Vec<f32>>, Error>;
+
+    /// 입력 받은 신간 정보와 시리즈 목록을 프롬프트에 요청해 신간이 시리즈에 속하는지 여부를 판단한다.
+    ///
+    /// # Paramter
+    /// - request: 신간 정보와 기존 시리즈의 도서 목록 정보를 담은 요청 객체
+    ///
+    /// # Returns
+    /// 신간이 시리즈에 속하는지 여부 (True: 속함/False: 속하지 않음)
+    fn series_similar(&self, request: &SeriesSimilarRequest) -> Result<bool, Error>;
 }
