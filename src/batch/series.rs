@@ -1,5 +1,5 @@
 use crate::batch::error::{JobProcessFailed, JobReadFailed, JobWriteFailed};
-use crate::batch::{job_builder, Job, JobParameter, Processor, Reader, Writer};
+use crate::batch::{job_builder, Job, JobParameter, Processor, ProcessorChain, Reader, Writer};
 use crate::item::{raw_utils, Book, RawDataKind, Series, SharedBookRepository, SharedSeriesRepository, Site};
 use crate::prompt::{NormalizeRequest, NormalizeRequestSaleInfo, SeriesSimilarRequest, SeriesSimilarRequestBookInfo, SharedPrompt};
 use crate::provider::api::nlgo;
@@ -337,14 +337,22 @@ pub fn create_job(
     prompt: SharedPrompt,
 ) -> Job<Book, SeriesMappingResult> {
     let reader = UnorganizedBookReader::new(book_repo.clone());
-    let processor = SeriesMappingProcessor::new(series_repo.clone(), prompt.clone());
+
+    let series_mapping_processor = SeriesMappingProcessor::new(series_repo.clone(), prompt.clone());
+    let series_similar_processor = BelongToSeriesProcessor::new(book_repo.clone(), prompt.clone());
+
+    let processor = ProcessorChain::new(Box::new(series_mapping_processor), Box::new(series_similar_processor));
+
     let writer = SeriesWriter::new(series_repo.clone(), book_repo.clone());
 
-    job_builder()
+    let mut job = job_builder()
         .reader(Box::new(reader))
         .processor(Box::new(processor))
         .writer(Box::new(writer))
-        .build()
+        .build();
+    job.chunk_size = 1;
+
+    job
 }
 
 fn retrieve_nlgo_set_isbn(book: &Book) -> Option<String> {

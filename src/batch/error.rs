@@ -30,7 +30,7 @@ impl std::fmt::Display for JobReadFailed {
 impl std::error::Error for JobReadFailed {}
 
 pub struct JobProcessFailed<I> {
-    item: I,
+    item: Option<I>,
     message: String,
 }
 
@@ -38,12 +38,19 @@ impl <I> JobProcessFailed<I> {
 
     pub fn new(item: I, message: String) -> Self {
         JobProcessFailed {
-            item,
+            item: Some(item),
             message,
         }
     }
 
-    pub fn item(&self) -> &I {
+    pub fn new_empty(message: String) -> Self {
+        JobProcessFailed {
+            item: None,
+            message,
+        }
+    }
+
+    pub fn item(&self) -> &Option<I> {
         &self.item
     }
 

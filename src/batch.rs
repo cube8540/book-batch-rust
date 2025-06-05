@@ -28,7 +28,7 @@ pub trait Filter {
     fn do_filter(&self, items: Vec<Self::Item>) -> Vec<Self::Item>;
 }
 
-/// 여러 필터들을 하나의 체인으로 결합하는 필터 체인 쿠조체
+/// 여러 필터들을 하나의 체인으로 결합하는 필터 체인 객체
 ///
 /// # Description
 /// 설정된 필터들을 순차적으로 실행하여 하나의 필터 처럼 동작시키며 이전에 실행한 필터의 결과를 다음 필터의 입력값으로 사용한다.
@@ -37,7 +37,7 @@ pub trait Filter {
 /// # Type
 /// - `T`: 필터링할 데이터 타입
 ///
-/// # Example
+/// # Examples
 /// ```
 /// use book_batch_rust::batch::{Filter, FilterChain};
 ///
@@ -111,6 +111,84 @@ pub trait Processor {
     type Out;
 
     fn do_process(&self, item: Self::In) -> Result<Self::Out, JobProcessFailed<Self::In>>;
+}
+
+/// 두 개의 프로세서를 하나의 체인으로 결합하는 체인 프로세서 객체
+///
+/// # Description
+/// `first` -> `second` 프로세서를 순서대로 동작시키며 `first`에서 나온 결과를 `second`의 입력 값으로 사용한다.
+/// 이를 통해 `I` 타입을 `R` 타입으로 변환한다.
+///
+/// # Type
+/// - `I`: 최초로 입력되는 데이터 타입
+/// - `O`: `first`가 반환할 데이터 타입
+/// - `R`: 최종적으로 반환될 데이터 타입
+///
+/// # Examples
+/// ```rust
+/// use book_batch_rust::batch::error::JobProcessFailed;
+/// use book_batch_rust::batch::{Processor, ProcessorChain};
+///
+/// struct Input {
+///     value: i32
+/// }
+///
+/// struct Output {
+///     value: i32
+/// }
+///
+/// struct Final {
+///     value: i32
+/// }
+///
+/// struct InputToOutput;
+/// impl Processor for InputToOutput {
+/// 	type In = Input;
+///     type Out = Output;
+///
+///     fn do_process(&self, item: Self::In) -> Result<Self::Out, JobProcessFailed<Self::In>> {
+///         Ok(Output { value: item.value * 2 })
+///     }
+/// }
+///
+/// struct OutputToFinal;
+/// impl Processor for OutputToFinal {
+///     type In = Output;
+/// 	type Out = Final;
+///
+/// 	fn do_process(&self, item: Self::In) -> Result<Self::Out, JobProcessFailed<Self::In>> {
+///         Ok(Final { value: item.value * 3 })
+///     }
+/// }
+///
+/// let processor: ProcessorChain<Input, Output, Final> = ProcessorChain::new(Box::new(InputToOutput {}), Box::new(OutputToFinal {}));
+/// let final_value = processor.do_process(Input { value: 10 }).unwrap().value;
+/// assert_eq!(final_value, 60);
+/// ```
+pub struct ProcessorChain<I, O, R> {
+
+    /// 최초로 실행될 프로세서
+    first: Box<dyn Processor<In = I, Out = O>>,
+
+    /// 최종적으로 실행될 프로세서
+    second: Box<dyn Processor<In = O, Out = R>>,
+}
+
+impl <I, O, R> ProcessorChain<I, O, R> {
+    pub fn new(first: Box<dyn Processor<In = I, Out = O>>, second: Box<dyn Processor<In = O, Out = R>>) -> Self {
+        ProcessorChain { first, second }
+    }
+}
+
+impl <I, O, R> Processor for ProcessorChain<I, O, R> {
+    type In = I;
+    type Out = R;
+
+    fn do_process(&self, item: Self::In) -> Result<Self::Out, JobProcessFailed<Self::In>> {
+        let first = self.first.do_process(item)?;
+        self.second.do_process(first)
+            .map_err(|err| JobProcessFailed::new_empty(err.to_string()))
+    }
 }
 
 /// 입력 타입과 출력 타입이 동일한 프로세서

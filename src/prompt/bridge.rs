@@ -6,7 +6,7 @@ use std::env::var;
 const DEFAULT_BRIDGE_HOST: &str = "http://localhost:5000";
 const DEFAULT_BRIDGE_NORMALIZE_ENDPOINT: &str = "/normalize";
 const DEFAULT_BRIDGE_EMBEDDING_ENDPOINT: &str = "/embedding";
-const DEFAULT_BRIDGE_SERIES_SIMILAR_ENDPOINT: &str = "/series_similar";
+const DEFAULT_BRIDGE_SERIES_SIMILAR_ENDPOINT: &str = "/series-similar";
 
 const DEFAULT_BRIDGE_TIMEOUT: usize = 30000;
 
@@ -153,19 +153,19 @@ impl Prompt for BridgeClient {
         let url = create_request_url(&self.server.host, &self.server.series_similar_endpoint);
         let body = serde_json::to_string(request)
             .map_err(|err| Error::ConnectFailed(format!("Failed to serialize request: {}", err)))?;
-        
+
         let response = client.post(url)
             .header("Content-Type", "application/json")
             .body(body)
             .send()
             .map_err(|err| Error::ConnectFailed(format!("Failed to send request: {}", err)))?;
-        
+
         let response_text = response.text()
             .map_err(|err| Error::ResponseParsingFailed(format!("Failed to read response: {}", err)))?;
-        
+
         let response = serde_json::from_str::<SeriesSimilar>(&response_text)
             .map_err(|err| Error::ResponseParsingFailed(format!("Failed to parse response: {}", err)))?;
-        
+
         Ok(response.result)
     }
 }
