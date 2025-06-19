@@ -120,8 +120,7 @@ impl SeriesFinder {
     /// 1. 코사인 유사도를 기준으로 가장 유사한 시리즈 2개를 검색한다.
     /// 2. 아래의 조건으로 반환값을 결정 한다:
     ///     - 입력 시리즈에 ISBN이 있는 경우:
-    ///       * 검색된 시리즈에 ISBN이 없으면 첫 번째(0번) 시리즈를 반환
-    ///       * 검색된 시리즈에 ISBN이 있으면 두 번째(1번) 시리즈를 반환
+    ///       * 검색된 시리즈 중 입력 시리즈의 ISBN과 다른 ISBN을 가지는 시리즈 반환
     ///     - 입력 시리즈에 ISBN이 없는 경우:
     ///       * 항상 첫 번째(0번) 시리즈 반환
     ///
@@ -143,14 +142,9 @@ impl SeriesFinder {
         }
 
         let mut series_vec = series_vec.into_iter();
-        let first = series_vec.next();
-        if first.is_none() || series.isbn().is_none() {
-            return first;
-        }
-
-        let (first_series, _) = first.as_ref().unwrap();
-        if first_series.isbn().is_none() {
-            first
+        if let Some(input_series_isbn) = series.isbn().clone() {
+            series_vec
+                .find(|(s, _)| s.isbn().is_none() || s.isbn().clone().unwrap() != input_series_isbn)
         } else {
             series_vec.next()
         }
