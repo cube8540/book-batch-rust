@@ -95,13 +95,75 @@ pub enum SeriesMappingResult {
     Exists(Book, Series),
 }
 
+/// 시리즈 검색 객체
+///
+/// # Description
+/// 시리즈 정규화를 위해 데이터베이스에 저장된 기존 시리즈를 검색하는 퍼사드 객체
+struct SeriesFinder {
+    series_repo: SharedSeriesRepository,
+}
+
+impl SeriesFinder {
+
+    /// 시리즈 ISBN을 입력 받아 데이터베이스에 저장된 기존 시리즈를 검색한다.
+    ///
+    /// # Parameters
+    /// - isbn: 시리즈 ISBN
+    fn by_isbn(&self, isbn: &str) -> Option<Series> {
+        let series_vec = self.series_repo.find_by_isbn(&[isbn]);
+        series_vec.into_iter().next()
+    }
+
+    /// 입력 받은 시리즈와 제목이 가장 유사한 시리즈를 데이터베이스에서 하나 찾는다.
+    ///
+    /// # Flow
+    /// 1. 코사인 유사도를 기준으로 가장 유사한 시리즈 2개를 검색한다.
+    /// 2. 아래의 조건으로 반환값을 결정 한다:
+    ///     - 입력 시리즈에 ISBN이 있는 경우:
+    ///       * 검색된 시리즈에 ISBN이 없으면 첫 번째(0번) 시리즈를 반환
+    ///       * 검색된 시리즈에 ISBN이 있으면 두 번째(1번) 시리즈를 반환
+    ///     - 입력 시리즈에 ISBN이 없는 경우:
+    ///       * 항상 첫 번째(0번) 시리즈 반환
+    ///
+    /// ## 특수한 반환값 결정 조건이 필요한 이유
+    /// 하나의 도서가 여러 컨텐츠(예: 소설, 만화 등)로 출간될 때 각 컨텐츠별로 서로 다른 ISBN이 부여 될 수 있으며,
+    /// 제목은 동일하거나 매우 유사할 수 있다. 따라서 단순히 제목의 유사도만으로 비교하면 실제로는 다른 형태의 시리즈를 동일한
+    /// 시리즈로 잘못 판단 할 수 있어 이러한 오류를 방지하기 위해 ISBN 존재 여부를 추가로 확인하는 조건이 필요하다.
+    ///
+    /// # Note
+    /// 이 함수는 검색된 시리즈와 입력 시리즈의 ISBN이 중복되지 않기 위해 [`self.by_isbn`]으로 시리즈를 찾지 못했거나
+    /// ISBN이 없는 시리즈를 처리할 때만 사용해야 한다.
+    ///
+    /// # Parameters
+    /// - series: 데이터베이스에 찾고 싶은 시리즈 정보
+    fn similarity(&self, series: &Series) -> Option<(Series, Option<f64>)> {
+        let series_vec = self.series_repo.similarity(series, 2);
+        if series_vec.is_empty() {
+            return None;
+        }
+
+        let mut series_vec = series_vec.into_iter();
+        let first = series_vec.next();
+        if first.is_none() || series.isbn().is_none() {
+            return first;
+        }
+
+        let (first_series, _) = first.as_ref().unwrap();
+        if first_series.isbn().is_none() {
+            first
+        } else {
+            series_vec.next()
+        }
+    }
+}
+
 /// 시리즈 맵핑 프로세서
 ///
 /// # Description
 /// LLM 프롬프트를 이용하여 도서의 제목을 정규화하고 데이터베이스에서 가장 유사한 시리즈를 조회해 해당 시리즈로 도서와 연결한다.
 /// 만약 유사한 시리즈가 없을 경우 정규화된 제목을 시리즈명으로 사용하여 신규 시리즈를 생성한다.
 pub struct SeriesMappingProcessor {
-    series_repo: SharedSeriesRepository,
+    series_finder: SeriesFinder,
     prompt: SharedPrompt,
 
     /// 기준 유사도
@@ -114,7 +176,11 @@ pub struct SeriesMappingProcessor {
 
 impl SeriesMappingProcessor {
     pub fn new(series_repo: SharedSeriesRepository, prompt: SharedPrompt) -> Self {
-        Self { series_repo, prompt, similar_score: DEFAULT_SIMILARITY_SCORE }
+        Self {
+            series_finder: SeriesFinder { series_repo },
+            prompt,
+            similar_score: DEFAULT_SIMILARITY_SCORE
+        }
     }
 }
 
@@ -179,8 +245,8 @@ impl Processor for SeriesMappingProcessor {
     /// 설정된 유사도 이상의 시리즈를 찾았을 경우
     fn do_process(&self, item: Self::In) -> Result<Self::Out, JobProcessFailed<Self::In>> {
         if let Some(set_isbn) = retrieve_nlgo_set_isbn(&item) {
-            let mut series = self.series_repo.find_by_isbn(&[&set_isbn]).into_iter();
-            if let Some(series) = series.next() {
+            let series = self.series_finder.by_isbn(&set_isbn);
+            if let Some(series) = series {
                 return Ok(SeriesMappingResult::Exists(item, series));
             }
         }
@@ -191,12 +257,10 @@ impl Processor for SeriesMappingProcessor {
         }
         let new_series = normalized.unwrap();
 
-        let most_similar_series = self.series_repo
-            .similarity(&new_series, 1)
-            .into_iter()
+        let most_similar_series = self.series_finder
+            .similarity(&new_series)
             .filter(|(_, similar)| similar.is_some())
-            .map(|(series, similar)| (series, 1.0 - similar.unwrap()))
-            .max_by(|(_, score1), (_, score2)| score1.partial_cmp(score2).unwrap());
+            .map(|(series, similar)| (series, 1.0 - similar.unwrap()));
 
         match most_similar_series {
             Some((exists_series, score)) => {
