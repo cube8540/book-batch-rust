@@ -60,57 +60,8 @@ where
     }
 }
 
-pub struct KyoboAddSeriesOriginal {
-    api: Rc<kyobo::KyoboAPI>
-}
-
-impl KyoboAddSeriesOriginal {
-    pub fn new(api: Rc<kyobo::KyoboAPI>) -> Self {
-        Self { api }
-    }
-}
-
-impl Processor for KyoboAddSeriesOriginal {
-    type In = Book;
-    type Out = Book;
-
-    fn do_process(&self, item: Self::In) -> Result<Self::Out, JobProcessFailed<Self::In>> {
-        let item_id = item.originals().get(&Site::KyoboBook);
-        if item_id.is_none() {
-            return Ok(item);
-        }
-        let item_id = item_id.unwrap().get("item_id");
-        if item_id.is_none() {
-            return Ok(item);
-        }
-
-        let item_id = match item_id.unwrap() {
-            RawValue::Text(s) => s.as_str(),
-            _ => {
-                return Err(JobProcessFailed::new(item, "item_id is not text".to_string()))
-            }
-        };
-        let book_items = self.api.get_series_list(item_id);
-        if book_items.is_ok() {
-            let book_items = book_items.unwrap();
-            let series = book_items.iter()
-                .map(|book_item| book_item.to_raw_val())
-                .collect::<Vec<_>>();
-
-            let new_book = item.to_builder()
-                .add_original_raw(Site::KyoboBook, "series", RawValue::Array(series));
-
-            Ok(new_book.build().unwrap())
-        } else {
-            warn!("Failed to get series list: {}({})", item.id(), item.isbn());
-            Ok(item)
-        }
-    }
-}
-
 pub fn create_job<LP>(
     client: Rc<kyobo::Client<LP>>,
-    api: Rc<kyobo::KyoboAPI>,
     book_repo: SharedBookRepository,
 ) -> Job<Book, Book>
 where
@@ -118,7 +69,6 @@ where
 {
     job_builder()
         .reader(Box::new(KyoboReader::new(client.clone(), book_repo.clone())))
-        .processor(Box::new(KyoboAddSeriesOriginal::new(api.clone())))
         .writer(Box::new(UpsertBookWriter::new(book_repo.clone())))
         .build()
 }

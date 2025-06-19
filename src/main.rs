@@ -48,7 +48,6 @@ fn main() {
         JobName::KYOBO => {
             let job = batch::book::kyobo::create_job(
                 Rc::new(kyobo::Client::new(kyobo::chrome::new_provider().unwrap())),
-                Rc::new(kyobo::KyoboAPI::new()),
                 book_repo.clone(),
             );
             job.run(&parameter).expect("Job running failed");

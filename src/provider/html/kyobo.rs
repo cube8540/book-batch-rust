@@ -11,17 +11,31 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
+use tracing::warn;
 
 const AGENT: &'static str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.149 Safari/537.36";
 
 const KYOBO_DOMAIN: &'static str = "https://www.kyobobook.co.kr";
 const ISBN_SEARCH_ENDPOINT: &'static str = "https://www.kyobobook.co.kr/product/detailViewKor.laf";
 
+/// 교보문고 로그인 제공 트레이트
+///
+/// # Description
+/// 교보문고 로그인과 로그인 후 생성된 쿠키를 관리하고 제공한다.
 pub trait LoginProvider {
+
     type CookieValue: AsRef<str>;
 
+    /// 교보문고 로그인
+    ///
+    /// # Description
+    /// 교보문고에 로그인을 하고 생성된 쿠키를 저장한다.
     fn login(&mut self) -> Result<(), ParsingError>;
 
+    /// 쿠키 반환
+    ///
+    /// # Description
+    /// 로그인 후 생성된 쿠키 리스트를 반환한다.
     fn get_cookies(&self) -> Result<Vec<Self::CookieValue>, ParsingError>;
 }
 
@@ -68,7 +82,24 @@ where
             .map_err(|err| ParsingError::RequestFailed(format!("ISBN: {}, ERROR: {:?}", isbn, err)))?;
 
         let text = response.text().unwrap();
-        html_to_book(&Html::parse_document(&text))
+        let parse = html_to_book(&Html::parse_document(&text));
+
+        if let Ok((item_id, mut book_builder)) = parse {
+            let series_list = get_series_list(&item_id);
+            if let Ok(series_list) = series_list {
+                let series = series_list.into_iter()
+                    .map(|b| b.to_raw_val())
+                    .collect::<Vec<_>>();
+
+                book_builder = book_builder.add_original_raw(Site::KyoboBook, "series", RawValue::Array(series));
+                Ok(book_builder)
+            } else {
+                warn!("Failed to get series list: {}({})", item_id, isbn);
+                Ok(book_builder)
+            }
+        } else {
+            Err(parse.unwrap_err())
+        }
     }
 }
 
@@ -127,47 +158,37 @@ impl BookItem {
     }
 }
 
-pub struct KyoboAPI;
+fn get_series_list(item_id: &str) -> Result<Vec<BookItem>, ParsingError> {
+    let url = format!("https://product.kyobobook.co.kr/api/gw/pdt/product/{}/series", item_id);
+    let url = Url::parse(&url).unwrap();
 
-impl KyoboAPI {
+    let client = reqwest::blocking::Client::builder()
+        .user_agent(AGENT)
+        .build()
+        .unwrap();
 
-    pub fn new() -> Self {
-        Self {}
+    let response = client
+        .get(url)
+        .send();
+    if response.is_err() {
+        return Err(ParsingError::RequestFailed(format!("ERROR: {:?}", response)));
+    }
+    let response = response.unwrap();
+    let text = response.text()
+        .map_err(|err| ParsingError::ResponseTextExtractionFailed(format!("ERROR: {:?}", err)))?;
+
+    let response: KyoboResponse = serde_json::from_str(&text)
+        .map_err(|err| ParsingError::ResponseTextExtractionFailed(format!("ERROR: {:?}", err)))?;
+
+    if response.status_code != 0 {
+        return Err(ParsingError::ItemNotFound);
     }
 
-    pub fn get_series_list(&self, item_id: &str) -> Result<Vec<BookItem>, ParsingError> {
-        let url = format!("https://product.kyobobook.co.kr/api/gw/pdt/product/{}/series", item_id);
-        let url = Url::parse(&url).unwrap();
-
-
-        let client = reqwest::blocking::Client::builder()
-            .user_agent(AGENT)
-            .build()
-            .unwrap();
-
-        let response = client
-            .get(url)
-            .send();
-        if response.is_err() {
-            return Err(ParsingError::RequestFailed(format!("ERROR: {:?}", response)));
-        }
-        let response = response.unwrap();
-        let text = response.text()
-            .map_err(|err| ParsingError::ResponseTextExtractionFailed(format!("ERROR: {:?}", err)))?;
-
-        let response: KyoboResponse = serde_json::from_str(&text)
-            .map_err(|err| ParsingError::ResponseTextExtractionFailed(format!("ERROR: {:?}", err)))?;
-
-        if response.status_code != 0 {
-            return Err(ParsingError::ItemNotFound);
-        }
-
-        let data = response.data.unwrap();
-        Ok(data.list)
-    }
+    let data = response.data.unwrap();
+    Ok(data.list)
 }
 
-fn html_to_book(document: &Html) -> Result<BookBuilder, ParsingError> {
+fn html_to_book(document: &Html) -> Result<(String, BookBuilder), ParsingError> {
     let item_id = utils::retrieve_item_id(document)
         .ok_or_else(|| ParsingError::ItemNotFound)?;
     let isbn = utils::retrieve_isbn(document)
@@ -210,7 +231,7 @@ fn html_to_book(document: &Html) -> Result<BookBuilder, ParsingError> {
         .title(title.clone())
         .add_original(Site::KyoboBook, origin_data);
 
-    Ok(builder)
+    Ok((item_id, builder))
 }
 
 pub fn load_raw_key_dict() -> RawKeyDict {
