@@ -9,6 +9,7 @@ use crate::item::{Book, BookBuilder, Publisher, SharedBookRepository, SharedFilt
 use crate::{PARAM_NAME_FROM, PARAM_NAME_ISBN, PARAM_NAME_PUBLISHER_ID, PARAM_NAME_TO};
 use chrono::NaiveDate;
 use std::collections::{HashMap, HashSet};
+use tracing::warn;
 
 /// [`JobParameter`]에서 `시작일`과 `종료일`을 얻어 [`NaiveDate`]로 반환한다.
 /// 시작일의 키는 `from_dt` 종료일의 키는 `to_dt`를 사용한다. 시작일과 종료일은 `%Y-%m-%d` 포멧으로 파싱하며
@@ -280,11 +281,10 @@ impl Writer for UpsertBookWriter {
         }
 
         let wrote = self.repo.save_books(&new_books);
-        if wrote.len() > 0 {
-            Ok(())
-        } else {
-            Err(JobWriteFailed::new(new_books, "No new books to write"))
+        if wrote.len() == 0 {
+            warn!("No new books to write")
         }
+        Ok(())
     }
 }
 
