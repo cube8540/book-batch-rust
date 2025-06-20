@@ -16,7 +16,7 @@ create table if not exists books.series(
     id bigserial not null primary key,
     name varchar(512),
     isbn varchar(13) unique,
-    main_title_vec vector(1024),
+    vec vector(1024),
     registered_at timestamp not null default now(),
     modified_at timestamp
 );
