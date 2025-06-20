@@ -1,9 +1,7 @@
-use clap::builder::TypedValueParser;
-use diesel::row::NamedRow;
-use tracing::warn;
 use crate::item::{Raw, RawDataKind, RawKeyDict, RawValue, Site};
 use crate::provider::api::{aladin, naver, nlgo};
 use crate::provider::html::kyobo;
+use tracing::warn;
 
 pub fn load_site_dict(site: &Site) -> RawKeyDict {
     match site {
@@ -16,17 +14,32 @@ pub fn load_site_dict(site: &Site) -> RawKeyDict {
 
 pub fn retrieve_title_from_raw(dict: &RawKeyDict, raw: &Raw) -> Option<String> {
     let key = dict.get(&RawDataKind::Title)?;
-    raw.get(key).map(|v| String::from(v))
+    let opt = raw.get(key).map(|v| String::from(v));
+    if opt.is_some() && !opt.as_ref().unwrap().is_empty() {
+        opt
+    } else {
+        None
+    }
 }
 
 pub fn retrieve_series_id_from_raw(dict: &RawKeyDict, raw: &Raw) -> Option<String> {
     let key = dict.get(&RawDataKind::SeriesID)?;
-    raw.get(key).map(|v| String::from(v))
+    let opt = raw.get(key).map(|v| String::from(v));
+    if opt.is_some() && !opt.as_ref().unwrap().is_empty() {
+        opt
+    } else {
+        None
+    }
 }
 
 pub fn retrieve_description_from_raw(dict: &RawKeyDict, raw: &Raw) -> Option<String> {
     let key = dict.get(&RawDataKind::Description)?;
-    raw.get(key).map(|v| String::from(v))
+    let opt = raw.get(key).map(|v| String::from(v));
+    if opt.is_some() && !opt.as_ref().unwrap().is_empty() {
+        opt
+    } else {
+        None
+    }
 }
 
 pub fn retrieve_sale_price_from_raw(dict: &RawKeyDict, raw: &Raw) -> Option<usize> {
@@ -36,7 +49,7 @@ pub fn retrieve_sale_price_from_raw(dict: &RawKeyDict, raw: &Raw) -> Option<usiz
         .and_then(|v| {
             usize::try_from(v)
                 .inspect_err(|e| {
-                    warn!("Failed to parse sale price: {}", v);
+                    warn!("Failed to parse sale price: {} (Err ==> {})", v, e);
                 })
                 .ok()
         })
