@@ -1,18 +1,16 @@
--- Your SQL goes here
-
 create table if not exists books.publisher(
     id bigserial not null primary key,
     name varchar(128) not null
 );
 
-create table if not exists books.publisher_keywords(
+create table if not exists books.publisher_keyword(
     publisher_id bigint not null,
     site varchar(32) not null ,
     keyword varchar(32) not null,
 
     foreign key (publisher_id) references books.publisher(id),
     primary key (publisher_id, site, keyword)
-)
+);
 
 create table if not exists books.series(
     id bigserial not null primary key,
@@ -23,11 +21,13 @@ create table if not exists books.series(
     modified_at timestamp
 );
 
+
 create table if not exists books.book(
     id bigserial not null primary key,
+    isbn varchar(13) not null unique ,
     title varchar(512) not null ,
-    series_id bigserial,
-    publisher_id bigserial not null,
+    series_id bigint,
+    publisher_id bigint not null,
     scheduled_pub_date date,
     actual_pub_date date,
     registered_at timestamp not null default now(),
@@ -45,7 +45,7 @@ create table if not exists books.book_origin_filter(
     operator_type varchar(32),
     property_name varchar(32),
     regex varchar(256),
-    parent_id bigserial,
+    parent_id bigint,
 
     foreign key (parent_id) references books.book_origin_filter(id)
 );
