@@ -124,16 +124,20 @@ pub trait ByPublisher: Reader<Item=Book> {
         let mut results = Vec::new();
 
         for publisher in publishers {
-            let keywords = publisher.keywords()
-                .get(self.site())
-                .ok_or_else(|| JobReadFailed::InvalidArguments(format!("No keywords for site {:?}", self.site())))?;
-            for keyword in keywords {
-                let books = self.by_publisher_keyword(keyword, params)?;
-                let books: Vec<Book> = books.into_iter()
-                    .map(|book| book.publisher_id(publisher.id()).build().unwrap())
-                    .collect();
+            match publisher.keywords().get(self.site()) {
+                Some(keywords) => {
+                    for keyword in keywords {
+                        let books = self.by_publisher_keyword(keyword, params)?;
+                        let books: Vec<Book> = books.into_iter()
+                            .map(|book| book.publisher_id(publisher.id()).build().unwrap())
+                            .collect();
 
-                results.extend(books);
+                        results.extend(books);
+                    }
+                },
+                None => {
+                    warn!("{:?} => No keywords for site {:?}", publisher.name(), self.site())
+                },
             }
         }
         Ok(results)
@@ -241,10 +245,9 @@ impl Writer for OnlyNewBooksWriter {
 
         let wrote = self.repo.save_books(&new_books);
         if wrote.len() > 0 {
-            Ok(())
-        } else {
-            Err(JobWriteFailed::new(new_books, "No new books to write"))
+            warn!("No new books to write");
         }
+        Ok(())
     }
 }
 

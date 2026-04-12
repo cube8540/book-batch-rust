@@ -3,7 +3,7 @@
 
 [print_schema]
 schema = "books"
-file = "src/item/diesel/schema.rs"
+file = "src/item/repo/diesel/schema.rs"
 import_types = ["diesel::sql_types::*", "pgvector::sql_types::*"]
 generate_missing_sql_type_definitions = false
 custom_type_derives = ["diesel::query_builder::QueryId", "Clone"]

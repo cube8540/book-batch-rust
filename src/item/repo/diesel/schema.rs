@@ -9,7 +9,7 @@ pub mod books {
             id -> Int8,
             #[max_length = 13]
             isbn -> Varchar,
-            #[max_length = 256]
+            #[max_length = 512]
             title -> Varchar,
             publisher_id -> Int8,
             scheduled_pub_date -> Nullable<Date>,
@@ -48,7 +48,7 @@ pub mod books {
 
         books.publisher (id) {
             id -> Int8,
-            #[max_length = 128]
+            #[max_length = 32]
             name -> Varchar,
         }
     }
@@ -61,7 +61,7 @@ pub mod books {
             publisher_id -> Int8,
             #[max_length = 32]
             site -> Varchar,
-            #[max_length = 32]
+            #[max_length = 256]
             keyword -> Varchar,
         }
     }
@@ -72,13 +72,25 @@ pub mod books {
 
         books.series (id) {
             id -> Int8,
-            #[max_length = 256]
+            #[max_length = 512]
             name -> Nullable<Varchar>,
             #[max_length = 13]
             isbn -> Nullable<Varchar>,
-            vec -> Nullable<Vector>,
             registered_at -> Timestamp,
             modified_at -> Nullable<Timestamp>,
+            vec -> Nullable<Vector>,
+        }
+    }
+
+    diesel::table! {
+        use diesel::sql_types::*;
+
+        books.book_origin_data (id) {
+            id -> Int8,
+            book_id -> Int8,
+            #[max_length = 32]
+            site -> Varchar,
+            origin_data -> Json
         }
     }
 

@@ -1,9 +1,13 @@
-use crate::item::{Book, BookBuilder, FilterRule, Operator, Series, Site};
+use crate::item::{Book, BookBuilder, FilterRule, Operator, Originals, Raw, RawValue, Series, Site};
 use diesel::prelude::*;
 use diesel::r2d2::ConnectionManager;
 use r2d2::Pool;
 use regex::Regex;
+use serde_json;
+use std::collections::HashMap;
+use std::fmt::Debug;
 use std::str::FromStr;
+use crate::item::repo::diesel::schema::books::book_origin_data::dsl::book_origin_data;
 
 mod schema;
 
@@ -501,7 +505,7 @@ impl BookOriginFilterPgStore {
 }
 
 impl BookOriginFilterPgStore {
-    pub fn find_by_site(&self, site: &Site) -> Result<Vec<BookOriginFilterEntity>, Error> {
+    pub fn find_by_site(&self, s: &Site) -> Result<Vec<BookOriginFilterEntity>, Error> {
         use schema::books::book_origin_filter::dsl::book_origin_filter;
         use schema::books::book_origin_filter::dsl::site as db_site;
 
@@ -509,11 +513,141 @@ impl BookOriginFilterPgStore {
             .map_err(|e| Error::ConnectError(e.to_string()))?;
 
         let results = book_origin_filter
-            .filter(db_site.eq(site.to_string()))
+            .filter(db_site.eq(s.to_string()))
             .select(BookOriginFilterEntity::as_select())
             .load(&mut connection)
             .map_err(|e| Error::SqlExecuteError(e.to_string()))?;
 
         Ok(results)
+    }
+}
+
+#[derive(Queryable, Selectable)]
+#[diesel(table_name = schema::books::book_origin_data)]
+#[diesel(check_for_backend(diesel::pg::Pg))]
+pub struct BookOriginDataEntity {
+    pub id: i64,
+    pub book_id: i64,
+    pub site: String,
+    pub origin_data: serde_json::Value,
+}
+
+impl BookOriginDataEntity {
+
+    pub fn to_domain(self) -> (Site, Raw) {
+        let map  = match self.origin_data {
+            serde_json::Value::Object(o) => {
+                o.into_iter().map(|(k, v)| (k, RawValue::from(v))).collect()
+            },
+            _ => HashMap::new()
+        };
+
+        (Site::try_from(self.site.as_str()).unwrap(), Raw::from(map))
+    }
+}
+
+impl From<BookOriginDataEntity> for Raw {
+    fn from(value: BookOriginDataEntity) -> Self {
+        match value.origin_data {
+            serde_json::Value::Object(map) => {
+                let mut m = HashMap::new();
+                for (k, v) in map {
+                    m.insert(k, RawValue::from(v));
+                }
+                m
+            },
+            _ => HashMap::new()
+        }
+    }
+}
+
+#[derive(Insertable)]
+#[diesel(table_name = schema::books::book_origin_data)]
+pub struct NewBookOriginData {
+    pub book_id: i64,
+    pub site: String,
+    pub origin_data: serde_json::Value,
+}
+
+impl NewBookOriginData {
+
+    pub fn new(book_id: i64, o: &Originals) -> Vec<Self> {
+        let mut v = Vec::new();
+        for (s, raw) in o {
+            let mut map = HashMap::new();
+            for (k, v) in raw {
+                map.insert(k, serde_json::Value::from(v.clone()));
+            }
+
+            let entity = Self {
+                book_id,
+                site: s.to_string(),
+                origin_data: serde_json::to_value(map).unwrap(),
+            };
+            v.push(entity)
+        }
+        v
+    }
+}
+
+pub struct BookOriginDataPgStore {
+    pool: Pool<ConnectionManager<PgConnection>>
+}
+
+impl BookOriginDataPgStore {
+    pub fn new(pool: Pool<ConnectionManager<PgConnection>>) -> Self {
+        Self { pool }
+    }
+}
+
+impl BookOriginDataPgStore {
+
+    pub fn find_by_book_id(&self, book_id: &[i64]) -> Result<Vec<BookOriginDataEntity>, Error> {
+        use schema::books::book_origin_data::dsl::book_origin_data;
+        use schema::books::book_origin_data::dsl::book_id as db_book_id;
+
+        let mut connection = self.pool.get()
+            .map_err(|e| Error::ConnectError(e.to_string()))?;
+
+        let result = book_origin_data
+            .filter(db_book_id.eq_any(book_id))
+            .select(BookOriginDataEntity::as_select())
+            .load(&mut connection)
+            .map_err(|e| Error::SqlExecuteError(e.to_string()))?;
+
+        Ok(result)
+    }
+
+    pub fn new_original_data(&self, book_id: i64, originals: &Originals) -> Result<Vec<BookOriginDataEntity>, Error> {
+        use schema::books::book_origin_data as db_book_origin_data;
+
+        let mut connection = self.pool.get()
+            .map_err(|e| Error::ConnectError(e.to_string()))?;
+
+        let entities = NewBookOriginData::new(book_id, originals);
+
+        let results = diesel::insert_into(db_book_origin_data::table)
+            .values(entities)
+            .returning(BookOriginDataEntity::as_select())
+            .get_results(&mut connection)
+            .map_err(|e| Error::SqlExecuteError(e.to_string()))?;
+
+        Ok(results)
+    }
+
+    pub fn delete_boko_origin_data_by_site(&self, book_id: i64, s: &Site) -> Result<usize, Error> {
+        use schema::books::book_origin_data::dsl::book_id as db_book_id;
+        use schema::books::book_origin_data::dsl::site as db_site;
+
+        let mut connection = self.pool.get()
+            .map_err(|e| Error::ConnectError(e.to_string()))?;
+
+        diesel::delete(
+                book_origin_data
+                    .filter(db_book_id.eq(book_id))
+                    .filter(db_site.eq(s.to_string()))
+            )
+            .execute(&mut connection)
+            .map_err(|e| Error::SqlExecuteError(e.to_string()))
     }
 }

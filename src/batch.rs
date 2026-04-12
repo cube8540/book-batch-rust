@@ -4,6 +4,7 @@ pub mod series;
 
 use crate::batch::error::{JobProcessFailed, JobReadFailed, JobRuntimeError, JobWriteFailed};
 use std::collections::HashMap;
+use tracing::{error, warn};
 
 pub type JobParameter = HashMap<String, String>;
 
@@ -281,7 +282,8 @@ impl<I, O> Job<I, O>  {
                 .map_err(|e| JobRuntimeError::ProcessFailed(e))?;
             targets.push(target);
         }
-        self.writer.do_write(targets).map_err(|e| JobRuntimeError::WriteFailed(e))?;
+        self.writer.do_write(targets)
+            .map_err(|e| JobRuntimeError::WriteFailed(e))?;
         Ok(())
     }
 }

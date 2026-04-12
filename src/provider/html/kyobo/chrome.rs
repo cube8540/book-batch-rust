@@ -2,10 +2,10 @@ use crate::provider::html::kyobo::LoginProvider;
 use crate::provider::html::ParsingError;
 use std::env;
 use std::env::VarError;
-use thirtyfour_sync::prelude::ElementQueryable;
-use thirtyfour_sync::{By, DesiredCapabilities, WebDriver, WebDriverCommands};
+use thirtyfour::prelude::ElementQueryable;
+use thirtyfour::{By, ChromiumLikeCapabilities, DesiredCapabilities, WebDriver};
 
-const AGENT: &'static str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.149 Safari/537.36";
+const AGENT: &'static str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36";
 
 const COOKIE_DOMAIN: &'static str = ".kyobobook.co.kr";
 const LOGIN_URL: &'static str = "https://mmbr.kyobobook.co.kr/login";
@@ -41,50 +41,51 @@ impl LoginProvider for ChromeDriverLoginProvider {
 
     fn login(&mut self) -> Result<(), ParsingError> {
         let mut caps = DesiredCapabilities::chrome();
-        caps.add_chrome_arg(&format!("--user-agent={}", AGENT))
-            .map_err(|err| ParsingError::AuthenticationError(err.to_string()))?;
-        caps.add_chrome_arg("--disable-blink-features=AutomationControlled")
-            .map_err(|err| ParsingError::AuthenticationError(err.to_string()))?;
+        caps.add_arg(format!("--user-agent={}", AGENT).as_str()).map_err(|e| ParsingError::UnknownError(e.to_string()))?;
 
-        let driver = WebDriver::new(&self.server_url, caps)
-            .map_err(|err| ParsingError::UnknownError(err.to_string()))?;
-        driver.get(LOGIN_URL)
-            .map_err(|err| ParsingError::PageNotFound(err.to_string()))?;
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(async {
+            let driver = WebDriver::new(&self.server_url, caps).await
+                .map_err(|err| ParsingError::UnknownError(err.to_string()))?;
 
-        let id_form = driver.find_element(By::ClassName("id"))
-            .map_err(|err| ParsingError::ElementNotFound(err.to_string()))?;
-        let id_element = id_form.find_element(By::ClassName("form_ip"))
-            .map_err(|err| ParsingError::ElementNotFound(err.to_string()))?;
+            driver.goto(LOGIN_URL).await
+                .map_err(|err| ParsingError::PageNotFound(err.to_string()))?;
 
-        let pw_form = driver.find_element(By::ClassName("pw"))
-            .map_err(|err| ParsingError::ElementNotFound(err.to_string()))?;
-        let pw_element = pw_form.find_element(By::ClassName("form_ip"))
-            .map_err(|err| ParsingError::ElementNotFound(err.to_string()))?;
+            let id_form = driver.find_element(By::ClassName("id")).await
+                .map_err(|err| ParsingError::ElementNotFound(err.to_string()))?;
+            let id_element = id_form.find_element(By::ClassName("form_ip")).await
+                .map_err(|err| ParsingError::ElementNotFound(err.to_string()))?;
 
-        _ = id_element.send_keys(&self.id)
-            .map_err(|err| ParsingError::UnknownError(err.to_string()))?;
-        _ = pw_element.send_keys(&self.pw)
-            .map_err(|err| ParsingError::UnknownError(err.to_string()))?;
+            let pw_form = driver.find_element(By::ClassName("pw")).await
+                .map_err(|err| ParsingError::ElementNotFound(err.to_string()))?;
+            let pw_element = pw_form.find_element(By::ClassName("form_ip")).await
+                .map_err(|err| ParsingError::ElementNotFound(err.to_string()))?;
 
-        let login_btn = driver.find_element(By::Id("loginBtn"))
-            .map_err(|err| ParsingError::ElementNotFound(err.to_string()))?;
-        _ = login_btn.click()
-            .map_err(|err| ParsingError::UnknownError(err.to_string()))?;
+            _ = id_element.send_keys(&self.id).await
+                .map_err(|err| ParsingError::UnknownError(err.to_string()))?;
+            _ = pw_element.send_keys(&self.pw).await
+                .map_err(|err| ParsingError::UnknownError(err.to_string()))?;
 
-        // 로그인 완료 대기
-        let body = driver.query(By::ClassName("font-body"));
-        body.first().unwrap().text().unwrap();
+            let login_btn = driver.find_element(By::Id("loginBtn")).await
+                .map_err(|err| ParsingError::ElementNotFound(err.to_string()))?;
+            _ = login_btn.click().await
+                .map_err(|err| ParsingError::UnknownError(err.to_string()))?;
 
-        let access_token = driver.get_cookie("accessToken")
-            .map_err(|err| ParsingError::UnknownError(err.to_string()))?;
+            // 로그인 완료 대기
+            let body = driver.query(By::ClassName("font-body"));
+            body.first().await.unwrap().text().await.unwrap();
 
-        let token = access_token.value().to_string().trim_matches('"').to_string();
-        _ = driver.quit()
-            .map_err(|err| ParsingError::UnknownError(err.to_string()))?;
-        
-        self.access_token = Some(token);
-        self.last_login_at = Some(chrono::Local::now().naive_local());
-        Ok(())
+            let access_token = driver.get_cookie("accessToken").await
+                .map_err(|err| ParsingError::UnknownError(err.to_string()))?;
+
+            let token = access_token.value.to_string().trim_matches('"').to_string();
+            _ = driver.quit().await
+                .map_err(|err| ParsingError::UnknownError(err.to_string()))?;
+
+            self.access_token = Some(token);
+            self.last_login_at = Some(chrono::Local::now().naive_local());
+            Ok(())
+        })
     }
 
     fn get_cookies(&self) -> Result<Vec<Self::CookieValue>, ParsingError> {

@@ -772,6 +772,15 @@ impl FilterRule {
                 let value = raw.get(&property_name).unwrap();
                 match value {
                     RawValue::Text(s) => regex.is_match(s),
+                    RawValue::Number(num) => match num {
+                        RawNumber::Undefined => {
+                            warn!("알 수 없는 숫자 타입. {}", num);
+                            false
+                        }
+                        RawNumber::UnsignedInt(n) => regex.is_match(n.to_string().as_str()),
+                        RawNumber::SignedInt(n) => regex.is_match(n.to_string().as_str()),
+                        RawNumber::Float(n) => regex.is_match(n.to_string().as_str())
+                    }
                     _ => {
                         warn!("Text 타입 이외의 다른 타입은 정규표현식 검사를 할 수 없습니다. {}", value);
                         false

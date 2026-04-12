@@ -51,7 +51,7 @@ impl ByPublisher for AladinReader {
                 .build().unwrap();
 
             let response = self.client.get_books(&request).unwrap();
-            if !response.books.is_empty() || current_fetch_size < MAX_RESULT {
+            if !response.books.is_empty() && current_fetch_size < MAX_RESULT {
                 current_fetch_size += response.books.len();
                 current_page += 1;
 

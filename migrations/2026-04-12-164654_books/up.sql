@@ -1,0 +1,60 @@
+create table if not exists books.publisher(
+    id bigserial not null primary key,
+    name varchar(128) not null
+);
+
+create table if not exists books.publisher_keyword(
+    publisher_id bigint not null,
+    site varchar(32) not null ,
+    keyword varchar(32) not null,
+
+    foreign key (publisher_id) references books.publisher(id),
+    primary key (publisher_id, site, keyword)
+);
+
+create table if not exists books.series(
+    id bigserial not null primary key,
+    name varchar(512),
+    isbn varchar(13) unique,
+    vec vector(1024),
+    registered_at timestamp not null default now(),
+    modified_at timestamp
+);
+
+
+create table if not exists books.book(
+    id bigserial not null primary key,
+    isbn varchar(13) not null unique ,
+    title varchar(512) not null ,
+    series_id bigint,
+    publisher_id bigint not null,
+    scheduled_pub_date date,
+    actual_pub_date date,
+    registered_at timestamp not null default now(),
+    modified_at timestamp,
+
+    foreign key(publisher_id) references books.publisher(id),
+    foreign key(series_id) references books.series(id)
+);
+
+create table if not exists books.book_origin_filter(
+    id bigserial not null primary key,
+    name varchar(64) not null,
+    site varchar(32) not null,
+    is_root boolean not null,
+    operator_type varchar(32),
+    property_name varchar(32),
+    regex varchar(256),
+    parent_id bigint,
+
+    foreign key (parent_id) references books.book_origin_filter(id)
+);
+
+create table if not exists books.book_origin_data(
+    id bigserial primary key,
+    book_id bigint not null,
+    site varchar(32) not null,
+    origin json not null,
+    
+    foreign key (book_id) references books.book(id)
+);;

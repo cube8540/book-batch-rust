@@ -12,10 +12,9 @@ fn main() {
     configs::set_global_logging_config().expect("Failed to set global logging config");
 
     let connection = configs::connect_to_postgres();
-    let mongo_client = configs::connect_to_mongo();
 
     let pub_repo = SharedPublisherRepository::new(Box::new(DieselPublisherRepository::new(connection.clone())));
-    let book_repo = SharedBookRepository::new(Box::new(ComposeBookRepository::with_origin(connection.clone(), mongo_client.clone())));
+    let book_repo = SharedBookRepository::new(Box::new(ComposeBookRepository::with_origin(connection.clone())));
     let filter_repo = SharedFilterRepository::new(Box::new(DieselFilterRepository::new(connection.clone())));
 
     let (job, parameter) = command_to_parameter();
@@ -55,7 +54,7 @@ fn main() {
         JobName::SERIES => {
             let bridge_server = BridgeServer::new_with_env();
 
-            let book_repo = ComposeBookRepository::new(connection.clone(), mongo_client.clone(), true, false, false);
+            let book_repo = ComposeBookRepository::new(connection.clone(), true, false, false);
             let book_repo = SharedBookRepository::new(Box::new(book_repo));
             
             let series_repo = SharedSeriesRepository::new(Box::new(DieselSeriesRepository::new(connection.clone())));

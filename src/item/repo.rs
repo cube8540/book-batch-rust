@@ -1,20 +1,16 @@
-use crate::item::repo::diesel::{BookEntity, BookOriginFilterPgStore, BookPgStore, PublisherEntity, PublisherKeywordEntity, PublisherPgStore, SeriesPgStore};
-use crate::item::repo::mongo::BookOriginDataStore;
+use crate::item::repo::diesel::{BookEntity, BookOriginDataPgStore, BookOriginFilterPgStore, BookPgStore, PublisherEntity, PublisherKeywordEntity, PublisherPgStore, SeriesPgStore};
 use crate::item::{Book, BookBuilder, BookRepository, FilterRepository, FilterRule, Publisher, PublisherRepository, Raw, Series, SeriesRepository, Site};
 use chrono::NaiveDate;
 use ::diesel::r2d2::ConnectionManager;
 use ::diesel::PgConnection;
-use mongodb::sync;
 use r2d2::Pool;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::rc::Rc;
-use sync::Client;
 use tracing::error;
 
 mod diesel;
-mod mongo;
 
 pub struct DieselSeriesRepository {
     series_store: SeriesPgStore
@@ -64,7 +60,7 @@ impl SeriesRepository for DieselSeriesRepository {
 
 pub struct ComposeBookRepository {
     book_store: BookPgStore,
-    origin_store: BookOriginDataStore,
+    origin_store: BookOriginDataPgStore,
 
     read_with_origin: bool,
     insert_with_origin: bool,
@@ -74,30 +70,30 @@ pub struct ComposeBookRepository {
 impl ComposeBookRepository {
 
 
-    pub fn new(db_pool: Pool<ConnectionManager<PgConnection>>, mongo_client: Client, read_with_origin: bool, insert_with_origin: bool, update_with_origin: bool) -> Self {
+    pub fn new(db_pool: Pool<ConnectionManager<PgConnection>>, read_with_origin: bool, insert_with_origin: bool, update_with_origin: bool) -> Self {
         Self { 
-            book_store: BookPgStore::new(db_pool),
-            origin_store: BookOriginDataStore::new(mongo_client),
+            book_store: BookPgStore::new(db_pool.clone()),
+            origin_store: BookOriginDataPgStore::new(db_pool.clone()),
             read_with_origin,
             insert_with_origin,
             update_with_origin
         }
     }
 
-    pub fn without_origin(db_pool: Pool<ConnectionManager<PgConnection>>, mongo_client: Client) -> Self {
+    pub fn without_origin(db_pool: Pool<ConnectionManager<PgConnection>>) -> Self {
         Self {
-            book_store: BookPgStore::new(db_pool),
-            origin_store: BookOriginDataStore::new(mongo_client),
+            book_store: BookPgStore::new(db_pool.clone()),
+            origin_store: BookOriginDataPgStore::new(db_pool.clone()),
             read_with_origin: false,
             insert_with_origin: false,
             update_with_origin: false,
         }
     }
 
-    pub fn with_origin(db_pool: Pool<ConnectionManager<PgConnection>>, mongo_client: Client) -> Self {
+    pub fn with_origin(db_pool: Pool<ConnectionManager<PgConnection>>) -> Self {
         Self {
-            book_store: BookPgStore::new(db_pool),
-            origin_store: BookOriginDataStore::new(mongo_client),
+            book_store: BookPgStore::new(db_pool.clone()),
+            origin_store: BookOriginDataPgStore::new(db_pool.clone()),
             read_with_origin: true,
             insert_with_origin: true,
             update_with_origin: true,
@@ -116,7 +112,7 @@ impl ComposeBookRepository {
 
         originals.into_iter()
             .map(|origin| {
-                let book_id = origin.book_id();
+                let book_id = origin.book_id;
                 let (site, original) = origin.to_domain();
                 (book_id, (site, original))
             })
@@ -177,7 +173,7 @@ impl BookRepository for ComposeBookRepository {
                 })
                 .for_each(|(id, original)| {
                     _ = self.origin_store.new_original_data(id, original)
-                        .unwrap_or_else(|e| logging_with_default_usize(e));
+                        .unwrap_or_else(|e| logging_with_default_vec(e));
                 });
         }
 
@@ -202,10 +198,11 @@ impl BookRepository for ComposeBookRepository {
         if self.update_with_origin {
             let book_id = book.id as i64;
             for (site, _) in book.originals.iter() {
-                _ = self.origin_store.delete_site(book_id, site)
+                _ = self.origin_store.delete_boko_origin_data_by_site(book_id, site)
                     .unwrap_or_else(|e| logging_with_default_usize(e));
             }
             updated_count += self.origin_store.new_original_data(book_id, book.originals())
+                .map(|v| v.len())
                 .unwrap_or_else(|e| logging_with_default_usize(e));
         }
 
