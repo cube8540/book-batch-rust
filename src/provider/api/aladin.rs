@@ -117,7 +117,7 @@ impl BookItem {
 
     fn to_book_builder(&self) -> BookBuilder {
         let mut builder = BookBuilder::new()
-            .isbn(self.isbn13.clone())
+            .isbn(self.isbn13.clone().replace(" ", ""))
             .title(self.title.clone())
             .add_original(Site::Aladin, self.to_original_raw());
         let actual_pub_date = NaiveDate::parse_from_str(self.pub_date.as_str(), "%Y-%m-%d").ok();
