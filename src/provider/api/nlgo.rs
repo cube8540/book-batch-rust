@@ -190,6 +190,7 @@ fn build_search_url(key: &str, request: &Request) -> Result<reqwest::Url, Client
         .append_pair("result_style", "json")
         .append_pair("page_no", &request.page.to_string())
         .append_pair("page_size", &request.size.to_string())
+        .append_pair("ebook_yn", "N")
         .append_pair("sort", "INDEX_PUBLISHER")
         .append_pair("order_by", "ASC");
 
